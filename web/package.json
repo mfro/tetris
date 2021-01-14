@@ -7,6 +7,7 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "@mfro/vue-ui": "mfro/vue-ui",
     "core-js": "^3.6.5",
     "vue": "^3.0.0"
   },
