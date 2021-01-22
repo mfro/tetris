@@ -1,5 +1,6 @@
 <template>
   <v-app align-center class="pa-6">
+    <!-- <config-game-rules /> -->
     <canvas ref="canvas" />
   </v-app>
 </template>
@@ -9,8 +10,14 @@ import { onMounted, shallowRef } from 'vue';
 
 import { tetris } from './tetris';
 
+import configGameRules from './view/config/config-game-rules';
+
 export default {
   name: 'tetris',
+
+  components: {
+    configGameRules
+  },
 
   setup() {
     let canvas = shallowRef();

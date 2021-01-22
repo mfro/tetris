@@ -1,3 +1,5 @@
+const path = require('path');
+
 module.exports = {
   publicPath: '',
 
@@ -14,12 +16,14 @@ module.exports = {
 
   devServer: {
     disableHostCheck: true,
-    hot: false,
   },
 
   configureWebpack: {
     resolve: {
       symlinks: false,
+      alias: {
+        vue$: path.resolve('../../chess/vue-next/packages/vue/dist/vue.runtime.esm-bundler.js'),
+      }
     },
   },
 };

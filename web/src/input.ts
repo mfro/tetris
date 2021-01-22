@@ -13,7 +13,9 @@ export const
   C = 67;
 
 let down = new Set<number>();
-let listeners = new Map<number, (() => void)[]>();
+
+let up_listeners = new Map<number, (() => void)[]>();
+let down_listeners = new Map<number, (() => void)[]>();
 
 window.addEventListener('keydown', e => {
   if (down.has(e.keyCode))
@@ -22,7 +24,7 @@ window.addEventListener('keydown', e => {
   // console.log(e.keyCode);
   down.add(e.keyCode);
 
-  let list = listeners.get(e.keyCode);
+  let list = down_listeners.get(e.keyCode);
   if (!list) return;
 
   for (let item of list) {
@@ -32,6 +34,13 @@ window.addEventListener('keydown', e => {
 
 window.addEventListener('keyup', e => {
   down.delete(e.keyCode);
+
+  let list = up_listeners.get(e.keyCode);
+  if (!list) return;
+
+  for (let item of list) {
+    item();
+  }
 });
 
 export function isKeyDown(k: number) {
@@ -39,7 +48,13 @@ export function isKeyDown(k: number) {
 }
 
 export function onKeyDown(key: number, handler: () => void) {
-  let list = listeners.get(key);
-  if (!list) listeners.set(key, list = []);
+  let list = down_listeners.get(key);
+  if (!list) down_listeners.set(key, list = []);
+  list.push(handler);
+}
+
+export function onKeyUp(key: number, handler: () => void) {
+  let list = up_listeners.get(key);
+  if (!list) up_listeners.set(key, list = []);
   list.push(handler);
 }
