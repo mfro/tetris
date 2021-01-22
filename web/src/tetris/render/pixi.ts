@@ -111,7 +111,7 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     g.lineTo(topleft.x, botrite.y - length);
 
     let pool = new SpritePool(field);
-    watch(src, list => {
+    watch(() => [src(), game.state.hold_available] as const, ([list, hold_available]) => {
       pool.clear();
 
       let center = new Vec(2, 2);
@@ -129,7 +129,9 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
         let offset = new Vec(-(minX + maxX) / 2, -(minY + maxY) / 2);
         let position = Vec.add(center, offset);
 
-        pool.draw_tetronimo({ id: -1, kind, position, rotation: 0 }, TileStyle.normal);
+        let style = list.length == 1 && !hold_available ? TileStyle.disabled : TileStyle.normal;
+
+        pool.draw_tetronimo({ id: -1, kind, position, rotation: 0 }, style);
         center = Vec.add(center, new Vec(0, 3));
       }
     }, { immediate: true });
