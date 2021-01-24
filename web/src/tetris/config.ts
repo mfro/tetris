@@ -142,6 +142,8 @@ export interface GameState {
 
   holding: TetronimoKind | null,
   hold_available: boolean,
+
+  dead: boolean;
 }
 
 export type Option =

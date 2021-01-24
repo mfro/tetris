@@ -4,7 +4,7 @@ import { Vec } from '@/vec';
 import { assert } from '@/util';
 import { A, C, DOWN, isKeyDown, LEFT, onKeyDown, onKeyUp, RIGHT, S, SHIFT, SPACE, UP, X, Z } from '@/input';
 
-import { GameRules, GameState, tetronimos, UserConfig, wall_kicks } from './config';
+import { GameRules, GameState, tetronimos, UserConfig as UserOptions, wall_kicks } from './config';
 
 import { render as basic_render } from './render/basic';
 import { render as pixi_render } from './render/pixi';
@@ -57,7 +57,7 @@ function empty_field(rules: GameRules) {
 }
 
 /** create a new game */
-function new_game(rules: GameRules): GameState {
+export function new_game(rules: GameRules): GameState {
   return {
     field: empty_field(rules),
 
@@ -65,10 +65,12 @@ function new_game(rules: GameRules): GameState {
     fall_queue: [],
     holding: null,
     hold_available: true,
+
+    dead: false,
   };
 }
 
-function reactive_game(inner: GameState): GameState {
+export function reactive_game(inner: GameState): GameState {
   let falling = inner.falling;
 
   return reactive({
@@ -80,11 +82,13 @@ function reactive_game(inner: GameState): GameState {
     })),
     fall_queue: shallowReactive([]),
     holding: shallowRef(null),
-    hold_available: true,
+    hold_available: inner.hold_available,
+
+    dead: inner.dead,
   });
 }
 
-function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
+export function run_game(rules: GameRules, user: UserOptions, game: GameState): Game {
   const down = new Vec(0, 1);
   let next_id = 0;
 
@@ -96,8 +100,6 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
   let shift_right = false;
   let repeat_shift = 0 as 0 | 1 | -1;
   let repeat_delay = 0;
-
-  let dead = false;
 
   new_falling();
 
@@ -123,8 +125,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
     if (collide(game.falling)) {
       console.log('collide', game.falling);
       game.falling = null;
-      dead = true;
-      clearInterval(cancel);
+      game.dead = true;
     } else {
       try_drop();
     }
@@ -159,6 +160,13 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
     return bottom;
   }
 
+  /** determine if the falling piece is resting on the ground */
+  function is_on_ground(t: Tetronimo) {
+    let position = Vec.add(t.position, down);
+
+    return collide({ ...t, position });
+  }
+
   /** lock down the falling tetronimo */
   function lock_down() {
     if (game.falling == null) return;
@@ -171,13 +179,6 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
     }
 
     new_falling();
-  }
-
-  /** determine if the falling piece is resting on the ground */
-  function is_on_ground(t: Tetronimo) {
-    let position = Vec.add(t.position, down);
-
-    return collide({ ...t, position });
   }
 
   /** try to drop the falling tetronimo one tile */
@@ -208,7 +209,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** hold a tetronimo, swapping the held piece out if one exists */
   function hold() {
-    if (dead) return;
+    if (game.dead) return;
 
     let next_fall = game.holding;
     game.holding = game.falling?.kind ?? null;
@@ -223,7 +224,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** attempt to shift the falling tetronimo */
   function shift(change: 1 | -1) {
-    if (dead || game.falling == null) return;
+    if (game.dead || game.falling == null) return;
 
     let position = Vec.add(game.falling.position, new Vec(change, 0));
     if (!collide({ ...game.falling, position })) {
@@ -243,7 +244,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** attempt to rotate the falling tetronimo */
   function rotate(change: 1 | -1) {
-    if (dead || game.falling == null) return;
+    if (game.dead || game.falling == null) return;
 
     let rotation = (game.falling.rotation + change) % 4;
     if (rotation < 0) rotation += 4;
@@ -271,7 +272,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** hard drop the falling tetronimo */
   function hard_drop() {
-    if (dead || game.falling == null) return;
+    if (game.dead || game.falling == null) return;
 
     game.falling.position = hard_drop_position(game.falling);
     lock_down();
@@ -279,7 +280,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** shift input handler */
   function press_shift(dir: 1 | -1) {
-    if (dead || game.falling == null) return;
+    if (game.dead || game.falling == null) return;
 
     repeating = false;
     if (dir == 1)
@@ -292,7 +293,7 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   /** shift input handler */
   function release_shift(dir: 1 | -1) {
-    if (dead || game.falling == null) return;
+    if (game.dead || game.falling == null) return;
 
     if (dir == 1)
       shift_right = false;
@@ -328,6 +329,10 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
 
   let cancel = setInterval(update, 1000 / 60);
   function update() {
+    if (game.dead) {
+      return clearInterval(cancel);
+    }
+
     if (repeat_delay > 0) {
       repeat_delay -= 1;
     } else if (user.autoshift && repeat_shift != 0) {
@@ -376,28 +381,4 @@ function run_game(rules: GameRules, user: UserConfig, game: GameState): Game {
   }
 
   return { rules, state: game, hard_drop_position };
-}
-
-export function tetris(canvas: HTMLCanvasElement) {
-  const rules: GameRules = {
-    field_size: new Vec(10, 40),
-    fall_delay: 30,
-    lock_delay: 30,
-    move_reset_limit: 15,
-
-    wall_kicks: wall_kicks.asira,
-
-    bag_preview: 5,
-  };
-
-  const user: UserConfig = {
-    autoshift: { delay: 2, initial_delay: 10 },
-    soft_drop: 10,
-  };
-
-  const state = reactive_game(new_game(rules));
-  const game = run_game(rules, user, state);
-
-  // basic_render(canvas, game);
-  pixi_render(canvas, game);
 }

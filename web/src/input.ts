@@ -10,7 +10,8 @@ export const
   Z = 90,
   S = 83,
   X = 88,
-  C = 67;
+  C = 67,
+  R = 82;
 
 let down = new Set<number>();
 

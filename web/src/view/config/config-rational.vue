@@ -1,31 +1,39 @@
 <template>
-  <v-flex column class="mt-4">
-    <v-flex align-baseline>
-      <v-text>{{ name }}</v-text>
-      <v-flex grow class="mx-4" />
-      <v-text>{{ description }}</v-text>
-    </v-flex>
+  <v-tooltip right :text="description">
+    <v-input
+      :label="name"
+      style="cursor: text"
+      @click="$refs.top.focus()"
+      :warning="state.error"
+    >
+      <template v-slot="{ id }">
+        <v-flex>
+          <input
+            ref="top"
+            :id="id"
+            :style="{ width: `3ch` }"
+            :value="state.top"
+            @input="setTop($event.target.value)"
+          />
 
-    <v-flex>
-      <v-flex class="mt-4" column justify-center>
-        <v-text>{{ modelValue }}</v-text>
-      </v-flex>
+          <v-flex class="mx-2" column justify-center>
+            <v-text>/</v-text>
+          </v-flex>
 
-      <v-flex grow class="mx-4" />
-
-      <v-text-field solo small v-model="top" />
-
-      <v-flex class="mt-4 mx-2" column justify-center>
-        <v-text title> / </v-text>
-      </v-flex>
-
-      <v-text-field solo small v-model="bot" />
-    </v-flex>
-  </v-flex>
+          <input
+            @click.stop
+            :value="state.bot"
+            @input="setBot($event.target.value)"
+          />
+        </v-flex>
+      </template>
+    </v-input>
+  </v-tooltip>
 </template>
 
 <script>
-import { computed } from 'vue';
+import { shallowReactive, watch } from 'vue';
+
 export default {
   name: 'config-rational',
 
@@ -34,43 +42,114 @@ export default {
     name: String,
     description: String,
     modelValue: Number,
+    filter: Function,
   },
 
   setup(props, { emit }) {
-    let top = computed({
-      get: () => {
-        if (props.modelValue > 1) {
-          return props.modelValue.toString();
+    let state = shallowReactive({
+      top: null,
+      bot: null,
+      error: false,
+    });
+
+    watch(() => props.modelValue, () => {
+      if (props.modelValue > 1) {
+        state.top = props.modelValue.toString();
+        state.bot = '1';
+      } else {
+        state.top = '1';
+        state.bot = 1 / props.modelValue.toString();
+      }
+    }, { immediate: true });
+
+    // let top = computed({
+    //   get: () => {
+    //     if (props.modelValue > 1) {
+    //       return props.modelValue.toString();
+    //     } else {
+    //       return '1';
+    //     }
+    //   },
+
+    //   set: (v) => {
+    //     let num = parseInt(v);
+
+    //     if (props.filter && !props.filter(num))
+    //       return;
+
+    //     emit('update:modelValue', num);
+    //   },
+    // });
+
+    // let bot = computed({
+    //   get: () => {
+    //     if (props.modelValue < 1) {
+    //       return (1 / props.modelValue).toString();
+    //     } else {
+    //       return '1';
+    //     }
+    //   },
+
+    //   set: (v) => {
+    //     let num = 1 / parseInt(v);
+
+    //     if (props.filter && !props.filter(num))
+    //       return;
+
+    //     emit('update:modelValue', num);
+    //   },
+    // });
+
+    return {
+      state,
+
+      setTop(v) {
+        state.top = v;
+        state.bot = '1';
+
+        let num = parseInt(v, 10);
+        if (num.toString() != v || props.filter && !props.filter(num)) {
+          state.error = true;
         } else {
-          return '1';
+          state.error = false;
+          emit('update:modelValue', num);
         }
       },
 
-      set: (v) => {
-        let num = parseInt(v);
-        emit('update:modelValue', num);
-      },
-    });
+      setBot(v) {
+        state.top = '1';
+        state.bot = v;
 
-    let bot = computed({
-      get: () => {
-        if (props.modelValue < 1) {
-          return (1 / props.modelValue).toString();
+        let num = 1 / parseInt(v, 10);
+        console.log(v, num);
+        if ((1 / num).toString() != v || props.filter && !props.filter(num)) {
+          state.error = true;
         } else {
-          return '1';
+          state.error = false;
+          emit('update:modelValue', num);
         }
       },
-
-      set: (v) => {
-        let num = parseInt(v);
-        emit('update:modelValue', 1 / num);
-      },
-    });
-
-    return { top, bot };
+    };
   },
 };
 </script>
 
-<style>
+<style lang="scss" module>
+div.root :global(input) {
+  width: 10ch;
+  // text-align: end;
+}
+</style>
+
+<style lang="scss" scoped>
+@import "@mfro/vue-ui/src/style.scss";
+
+input {
+  color: inherit;
+  font-size: $text-unit;
+  outline: none;
+
+  font-family: Roboto;
+  font-weight: normal;
+}
 </style>

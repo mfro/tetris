@@ -1,53 +1,93 @@
 <template>
-  <v-card>
-    <template v-slot:title>
-      <v-text title>Game Rules</v-text>
-    </template>
+  <config-rational
+    name="Gravity"
+    description="Gravity for falling pieces (tiles per frame)"
+    v-model="gravity"
+    :filter="(v) => v <= 20"
+  />
 
-    <v-flex column class="pa-4">
-      <config-rational
-        name="Drop Delay"
-        description="Drop delay for falling pieces (frames per tile)"
-        v-model="rules.fall_delay"
-      />
+  <config-number
+    name="Lock delay"
+    description="Delay after touching the ground before a piece locks down (frames)"
+    v-model="lock_delay"
+    :filter="(v) => v >= 0"
+  />
 
-      <config-rational
-        name="Lock Delay"
-        description="Delay after hitting the floor before a piece locks down (frames)"
-        v-model="rules.lock_delay"
-      />
-    </v-flex>
-  </v-card>
+  <config-number
+    name="Move reset limit"
+    description="Maximum number of times the lock delay can be reset by successful shifts or rotates"
+    v-model="move_reset_limit"
+    :filter="(v) => v >= 0"
+  />
+
+  <config-number
+    name="Preview size"
+    description="Number of pieces in the preview"
+    v-model="bag_preview"
+    :filter="(v) => v >= 0 && v <= 6"
+  />
+
+  <config-select
+    name="Wall kick style"
+    description="Wall kick configuration to use for rotations"
+    v-model="wall_kicks"
+    :options="wallKickOptions"
+  />
 </template>
 
 <script>
-import { shallowReactive } from 'vue';
+import { computed } from 'vue';
 
-import { Vec } from '@/vec';
 import { wall_kicks } from '@/tetris/config';
 
+import configSelect from './config-select';
+import configNumber from './config-number';
 import configRational from './config-rational';
+
+const wallKickOptions = [
+  ['No Kicks', wall_kicks.none],
+  ['Standard', wall_kicks.standard],
+  ['Asira', wall_kicks.asira],
+];
+
+function field(emit, target, key, get = v => v, set = v => v) {
+  return computed({
+    get: () => get(target[key]),
+    set: (value) => {
+      let rules = { ...target, [key]: set(value) };
+      emit('update:modelValue', rules);
+    },
+  });
+}
 
 export default {
   name: 'config-game-rules',
-
   components: {
+    configSelect,
+    configNumber,
     configRational,
   },
 
-  setup() {
-    let rules = shallowReactive({
-      field_size: new Vec(10, 40),
-      fall_delay: 30,
-      lock_delay: 30,
-      move_reset_limit: 15,
+  emits: ['update:modelValue'],
+  props: {
+    modelValue: Object,
+  },
 
-      wall_kicks: wall_kicks.asira,
+  setup(props, { emit }) {
+    let gravity = field(emit, props.modelValue, 'fall_delay', v => 1 / v, v => 1 / v);
+    let lock_delay = field(emit, props.modelValue, 'lock_delay');
+    let move_reset_limit = field(emit, props.modelValue, 'move_reset_limit');
+    let bag_preview = field(emit, props.modelValue, 'bag_preview');
+    let wall_kicks = field(emit, props.modelValue, 'wall_kicks');
 
-      bag_preview: 5,
-    });
-
-    return { rules };
+    return {
+      gravity,
+      lock_delay,
+      move_reset_limit,
+      bag_preview,
+      wall_kicks,
+      wallKickOptions,
+    };
   },
 };
 </script>

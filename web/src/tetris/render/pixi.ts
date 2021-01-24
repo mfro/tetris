@@ -236,5 +236,11 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
         falling.draw_tetronimo(game.state.falling, TileStyle.normal);
       }
     });
+
+    watchEffect(() => {
+      if (game.state.dead) {
+        app.destroy();
+      }
+    });
   });
 }
