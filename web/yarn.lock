@@ -887,6 +887,14 @@
     cssnano-preset-default "^4.0.0"
     postcss "^7.0.0"
 
+"@mfro/tetris-common@link:../common":
+  version "0.0.0"
+  uid ""
+
+"@mfro/ts-common@mfro/ts-common":
+  version "1.0.0"
+  resolved "https://codeload.github.com/mfro/ts-common/tar.gz/e9bbef59593c6a0a1086acccb648b738e156a9f4"
+
 "@mfro/vue-ui@mfro/vue-ui":
   version "1.0.1"
   resolved "https://codeload.github.com/mfro/vue-ui/tar.gz/9b06a4853660c0519d0155e7db28cda19e3a9202"
@@ -1421,6 +1429,13 @@
     "@types/uglify-js" "*"
     "@types/webpack-sources" "*"
     source-map "^0.6.0"
+
+"@types/ws@^7.4.0":
+  version "7.4.0"
+  resolved "https://registry.yarnpkg.com/@types/ws/-/ws-7.4.0.tgz#499690ea08736e05a8186113dac37769ab251a0e"
+  integrity sha512-Y29uQ3Uy+58bZrFLhX36hcI3Np37nqWE7ky5tjiDoy1GDZnIwVxS0CgF+s+1bXMzjKBFy+fqaRfb708iNzdinw==
+  dependencies:
+    "@types/node" "*"
 
 "@vue/babel-helper-vue-jsx-merge-props@^1.2.1":
   version "1.2.1"
@@ -1987,6 +2002,11 @@ ajv@^6.1.0, ajv@^6.10.2, ajv@^6.12.2, ajv@^6.12.3, ajv@^6.12.4:
     fast-json-stable-stringify "^2.0.0"
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
+
+alea@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/alea/-/alea-1.0.0.tgz#0c6f2421a03a98963431366583a1112ea7c28ccc"
+  integrity sha512-LSvpz/wLJWC6P19Eogz0IgysHgb46DKhHx4VfNWSCQua3usAYDpmrYxqqlqdy4Ozhd2ras2Km+zc26yBB36EaA==
 
 alphanum-sort@^1.0.0:
   version "1.0.2"

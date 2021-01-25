@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "module": "ES6",
+    "target": "ES6",
+    "strict": true,
+
+    "preserveSymlinks": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "./src/**/*.ts",
+    "../common/**/*.ts"
+  ]
+}

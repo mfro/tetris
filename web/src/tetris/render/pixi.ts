@@ -25,6 +25,11 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
 
   const textures = new Map<TetronimoKind, BaseTexture>();
 
+  canvas.width = (game.rules.field_size.x + 12) * unit_size;
+  canvas.height = (game.rules.field_size.y / 2) * unit_size;
+  canvas.style.width = `${canvas.width}px`;
+  canvas.style.height = `${canvas.height}px`;
+
   function tile_at(pos: Vec) {
     if (pos.x < 0 || pos.x >= game.rules.field_size.x
       || pos.y < 0 || pos.y >= game.rules.field_size.y)
@@ -80,11 +85,11 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     let size = src().length;
 
     let field = new Container();
-    field.scale = new Point(unit_size, unit_size);
+    // field.scale = new Point(1, unit_size);
 
     let g = new Graphics();
     field.addChild(g);
-    g.scale = new Point(1 / 32, 1 / 32);
+    g.scale = new Point(1 / unit_size, 1 / unit_size);
 
     let topleft = Vec.scale(new Vec(0, 0), unit_size);
     let botrite = Vec.scale(new Vec(4, 1 + 3 * size), unit_size);
@@ -184,19 +189,19 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     }
 
     const root = new Container();
+    root.scale = new Point(unit_size, unit_size);
 
-    let field = new Container();
-    field.scale = new Point(unit_size, unit_size);
-    field.position = new Point(unit_size * 6, unit_size * (-game.rules.field_size.y / 2));
+    const field = new Container();
+    field.position = new Point(6, (-game.rules.field_size.y / 2));
 
     const background = new Graphics();
     draw_background(background);
 
     const holding = draw_ui(() => [game.state.holding]);
-    holding.position = new Point(unit_size * 1, unit_size * 1);
+    holding.position = new Point(1, 1);
 
     const queue = draw_ui(() => game.state.fall_queue.slice(0, 5));
-    queue.position = new Point(unit_size * (7 + game.rules.field_size.x), unit_size * 1);
+    queue.position = new Point((7 + game.rules.field_size.x), 1);
 
     field.addChild(background);
     root.addChild(field);
@@ -236,11 +241,7 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
         falling.draw_tetronimo(game.state.falling, TileStyle.normal);
       }
     });
-
-    watchEffect(() => {
-      if (game.state.dead) {
-        app.destroy();
-      }
-    });
   });
+
+  return () => app.destroy();
 }

@@ -127,7 +127,7 @@ export interface GameRules {
   bag_preview: 5,
 }
 
-export interface UserConfig {
+export interface UserPreferences {
   // autoshift information for repeating shifts while input is held
   autoshift: null | { delay: number, initial_delay: number };
   // multiplier for fall_delay while soft drop is held
@@ -135,6 +135,7 @@ export interface UserConfig {
 }
 
 export interface GameState {
+  seed: number;
   field: (Tile | null)[][],
 
   falling: Tetronimo | null,
@@ -202,7 +203,7 @@ export const GameDefinition: Definition<GameRules> = {
   bag_preview: natural('Preview Size', 'Number of pieces in the preview'),
 };
 
-export const UserDefinition: Definition<UserConfig> = {
+export const UserDefinition: Definition<UserPreferences> = {
   autoshift: optional(object('Autoshift', 'Configure repeated shifts while input is held', {
     delay: rational('Delay', 'Delay between repeated shifts (frames)'),
     initial_delay: rational('Initial Delay', 'Delay after first shift before repeating (frames)'),

@@ -14,7 +14,7 @@
         </template>
 
         <config-game-rules v-if="editing == 'game'" v-model="editTarget" />
-        <config-user-options v-if="editing == 'user'" v-model="editTarget" />
+        <config-user-prefs v-if="editing == 'user'" v-model="editTarget" />
 
         <template v-slot:actions>
           <v-grow />
@@ -24,7 +24,14 @@
     </v-dialog>
 
     <v-flex column grow>
-      <canvas ref="canvas" />
+      <clipboard v-if="remote.state == 1" class="pb-4" :value="link" />
+
+      <v-flex>
+        <game v-if="local_game" :value="local_game" />
+
+        <game v-if="remote.local" :value="remote.local" />
+        <game v-if="remote.remote" :value="remote.remote" />
+      </v-flex>
 
       <v-grow />
 
@@ -44,29 +51,31 @@
 </template>
 
 <script>
-import { onMounted, shallowReactive, shallowRef, watch, watchEffect } from 'vue';
+import { computed, shallowReactive, shallowRef, watch } from 'vue';
 
 import { onKeyDown, R } from '@/input';
 import { Vec } from '@/vec';
-import { new_game, reactive_game, run_game } from '@/tetris';
+import { play, new_game, reactive_state, empty_state } from '@/tetris';
 import { wall_kicks } from '@/tetris/config';
-import { render as pixi_render } from '@/tetris/render/pixi';
+import { remote_game } from '@/remote';
 
+import game from './view/game';
+import clipboard from './view/clipboard';
 import configGameRules from './view/config/config-game-rules';
-import configUserOptions from './view/config/config-user-options';
+import configUserPrefs from './view/config/config-user-prefs';
 
 export default {
   name: 'tetris',
 
   components: {
+    game,
+    clipboard,
     configGameRules,
-    configUserOptions,
+    configUserPrefs,
   },
 
   setup() {
-    let canvas = shallowRef();
-
-    let game_rules = shallowReactive({
+    const game_rules = shallowReactive({
       field_size: new Vec(10, 40),
       fall_delay: 50,
       lock_delay: 30,
@@ -77,34 +86,42 @@ export default {
       bag_preview: 5,
     });
 
-    let user_prefs = shallowReactive({
+    const user_prefs = shallowReactive({
       autoshift: shallowReactive({ delay: 2, initial_delay: 10 }),
       soft_drop: 10,
     });
 
-    let current_game = null;
-    let start_game = () => {
-      if (current_game)
-        current_game.state.dead = true;
+    const editing = shallowRef(null);
+    const editTarget = shallowRef(null);
 
-      const state = reactive_game(new_game(game_rules));
-      current_game = run_game(game_rules, user_prefs, state);
+    const local_game = shallowRef(null);
+    const remote = remote_game(game_rules, user_prefs);
 
-      // basic_render(canvas, game);
-      pixi_render(canvas.value, current_game);
-    };
-
-    onMounted(() => {
-      start_game();
+    const play_local = computed(() => {
+      return remote.local == null;
     });
 
-    onKeyDown(R, () => start_game());
+    let localCleanup;
+    watch(play_local, (v) => {
+      if (v) {
+        const state = reactive_state(empty_state(game_rules));
+        local_game.value = new_game(game_rules, state);
+        localCleanup = play(user_prefs, local_game.value);
+      } else {
+        localCleanup?.();
+        local_game.value = null;
+      }
+    }, { immediate: true });
 
-    let editing = shallowRef(null);
-    let editTarget = shallowRef(null);
+    const base = window.location;
+    const link = computed(() => `${base.origin}${base.pathname}?code=${remote.code}`);
 
     return {
-      canvas,
+      link,
+
+      remote,
+      local_game,
+
       editing,
       editTarget,
 
@@ -144,5 +161,6 @@ export default {
 
 <style lang="scss" scoped>
 canvas {
+  width: 0;
 }
 </style>

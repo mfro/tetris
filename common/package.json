@@ -1,0 +1,12 @@
+{
+  "name": "@mfro/tetris-common",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "rollup -c rollup.config.js",
+    "watch": "rollup -c rollup.config.js --watch"
+  },
+  "dependencies": {
+    "@mfro/ts-common": "mfro/ts-common"
+  }
+}
