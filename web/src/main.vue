@@ -1,152 +1,80 @@
 <template>
   <v-app align-center class="pa-6">
-    <v-dialog :model-value="editing != null">
-      <v-card style="min-width: 60ch">
-        <template v-slot:title>
-          <v-text title v-if="editing == 'game'">Game Rules</v-text>
-          <v-text title v-if="editing == 'user'">User Config</v-text>
-
-          <v-grow />
-
-          <v-button icon small @click="editing = editTarget = null">
-            <v-icon>close</v-icon>
-          </v-button>
-        </template>
-
-        <config-game-rules v-if="editing == 'game'" v-model="editTarget" />
-        <config-user-prefs v-if="editing == 'user'" v-model="editTarget" />
-
-        <template v-slot:actions>
-          <v-grow />
-          <v-button color="primary" @click="save()">Save</v-button>
-        </template>
-      </v-card>
+    <v-dialog :model-value="editing_user">
+      <edit-config
+        kind="user"
+        v-model="user_prefs"
+        @close="editing_user = false"
+      />
     </v-dialog>
 
-    <v-flex column grow>
-      <clipboard v-if="remote.state == 1" class="pb-4" :value="link" />
-
-      <v-flex>
-        <game v-if="local_game" :value="local_game" />
-
-        <game v-if="remote.local" :value="remote.local" />
-        <game v-if="remote.remote" :value="remote.remote" />
-      </v-flex>
-
-      <v-grow />
-
-      <v-flex justify-center>
-        <v-button @click="edit('game')">
-          <v-icon class="mr-3">settings</v-icon>
-          <span>Game Rules</span>
-        </v-button>
-
-        <v-button @click="edit('user')" class="ml-3">
-          <v-icon class="mr-3">settings</v-icon>
-          <span>User Config</span>
-        </v-button>
-      </v-flex>
+    <v-flex class="user pa-4">
+      <v-button @click="editing_user = true">
+        <v-icon class="mr-3">settings</v-icon>
+        <span>User preferences</span>
+      </v-button>
     </v-flex>
+
+    <room v-if="current_room != null" :room="current_room" />
+
+    <joining
+      v-else-if="joining_code != null"
+      :code="joining_code"
+      @room="current_room = $event"
+    />
+
+    <landing v-else @room="current_room = $event" />
   </v-app>
 </template>
 
 <script>
-import { computed, shallowReactive, shallowRef, watch } from 'vue';
+import { computed, provide, shallowRef, watch } from 'vue';
 
-import { onKeyDown, R } from '@/input';
-import { Vec } from '@/vec';
-import { play, new_game, reactive_state, empty_state } from '@/tetris';
-import { wall_kicks } from '@/tetris/config';
-import { remote_game } from '@/remote';
+import editConfig from '@/ui/edit-config';
 
-import game from './view/game';
-import clipboard from './view/clipboard';
-import configGameRules from './view/config/config-game-rules';
-import configUserPrefs from './view/config/config-user-prefs';
+import room from './view/room';
+import landing from './view/landing';
+import joining from './view/joining';
 
 export default {
   name: 'tetris',
 
   components: {
-    game,
-    clipboard,
-    configGameRules,
-    configUserPrefs,
+    editConfig,
+
+    room,
+    landing,
+    joining,
   },
 
   setup() {
-    const game_rules = shallowReactive({
-      field_size: new Vec(10, 40),
-      fall_delay: 50,
-      lock_delay: 30,
-      move_reset_limit: 15,
+    const current_room = shallowRef(null);
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const joining_code = shallowRef(code);
 
-      wall_kicks: wall_kicks.standard,
+    const raw = localStorage.getItem('mfro:tetris-user-preferences');
 
-      bag_preview: 5,
-    });
-
-    const user_prefs = shallowReactive({
-      autoshift: shallowReactive({ delay: 2, initial_delay: 10 }),
+    const editing_user = shallowRef(false);
+    const user_prefs = raw ? JSON.parse(raw) : {
+      autoshift: { delay: 2, initial_delay: 10 },
       soft_drop: 10,
-    });
+    };
 
-    const editing = shallowRef(null);
-    const editTarget = shallowRef(null);
-
-    const local_game = shallowRef(null);
-    const remote = remote_game(game_rules, user_prefs);
-
-    const play_local = computed(() => {
-      return remote.local == null;
-    });
-
-    let localCleanup;
-    watch(play_local, (v) => {
-      if (v) {
-        const state = reactive_state(empty_state(game_rules));
-        local_game.value = new_game(game_rules, state);
-        localCleanup = play(user_prefs, local_game.value);
-      } else {
-        localCleanup?.();
-        local_game.value = null;
-      }
-    }, { immediate: true });
-
-    const base = window.location;
-    const link = computed(() => `${base.origin}${base.pathname}?code=${remote.code}`);
+    provide('user_prefs', user_prefs);
 
     return {
-      link,
+      current_room,
+      joining_code,
+      editing_user,
 
-      remote,
-      local_game,
-
-      editing,
-      editTarget,
-
-      game_rules, user_prefs,
-
-      edit(name) {
-        if (name == 'game') {
-          editTarget.value = game_rules;
-        } else if (name == 'user') {
-          editTarget.value = user_prefs;
-        }
-
-        editing.value = name;
-      },
-
-      save() {
-        if (editing.value == 'game') {
-          Object.assign(game_rules, editTarget.value);
-        } else if (editing.value == 'user') {
-          Object.assign(user_prefs, editTarget.value);
-        }
-
-        editing.value = null;
-        editTarget.value = null;
-      },
+      user_prefs: computed({
+        get: () => user_prefs,
+        set: (v) => {
+          Object.assign(user_prefs, v)
+          localStorage.setItem('mfro:tetris-user-preferences', JSON.stringify(v));
+        },
+      }),
     };
   },
 };
@@ -160,7 +88,9 @@ export default {
 </style>
 
 <style lang="scss" scoped>
-canvas {
-  width: 0;
+.user {
+  position: absolute;
+  left: 0;
+  bottom: 0;
 }
 </style>

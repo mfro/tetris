@@ -1,6 +1,6 @@
 {
-  "name": "@mfro/tetris-server",
-  "version": "0.1.0",
+  "name": "server",
+  "version": "0.0.0",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "watch": "rollup -c rollup.config.js --watch"
   },
   "dependencies": {
-    "@mfro/tetris-common": "link:../common/",
+    "common": "0.0.0",
     "@mfro/ts-common": "mfro/ts-common",
     "ws": "^7.3.0"
   },

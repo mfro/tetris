@@ -4,12 +4,12 @@
     "target": "ES6",
     "strict": true,
 
+    "rootDir": "..",
     "preserveSymlinks": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true
   },
   "include": [
     "./src/**/*.ts",
-    "../common/**/*.ts"
   ]
 }

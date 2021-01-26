@@ -1,11 +1,11 @@
 <template>
   <v-flex align-center justify-center>
-    <v-button icon @click="copy()" @mouseleave="copied = false">
-      <v-icon v-if="!copied">content_paste</v-icon>
-      <v-icon v-else bold style="color: #4caf50">check</v-icon>
+    <v-button small icon @click="copy()" @mouseleave="copied = false">
+      <v-icon small v-if="!copied">content_paste</v-icon>
+      <v-icon small v-else bold style="color: #4caf50">check</v-icon>
     </v-button>
 
-    <v-text-field class="mt-0 ml-4" ref="input" solo :model-value="value" />
+    <v-text-field small class="mt-0 ml-4" ref="input" solo :model-value="value" />
   </v-flex>
 </template>
 

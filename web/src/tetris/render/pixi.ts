@@ -172,10 +172,10 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     transparent: true,
   });
 
-  let s = performance.now();
+  // let s = performance.now();
   render_tilesheets(unit_size, draw_styles.v2, tilesheets => {
-    let e = performance.now();
-    console.log(e - s);
+    // let e = performance.now();
+    // console.log(e - s);
     tilesheets.forEach((sheet, i) => {
       app.loader.add(i.toString(), sheet);
     });

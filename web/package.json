@@ -1,12 +1,13 @@
 {
-  "name": "tetris",
-  "version": "0.1.0",
+  "name": "web",
+  "version": "0.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "common": "0.0.0",
     "@mfro/tetris-common": "link:../common",
     "@mfro/ts-common": "mfro/ts-common",
     "@mfro/vue-ui": "mfro/vue-ui",
@@ -24,6 +25,6 @@
     "@vue/compiler-sfc": "^3.0.0",
     "sass": "^1.26.5",
     "sass-loader": "^8.0.2",
-    "typescript": "~3.9.3"
+    "typescript": "^4.1.3"
   }
 }

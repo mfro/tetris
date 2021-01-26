@@ -1,5 +1,5 @@
 import { Vec } from '@/vec';
-import { assert } from '@/util';
+import { assert } from '@mfro/ts-common/assert';
 
 import { TetronimoKind, Tetronimo, pieces, Game } from '..';
 import { tetronimos } from '../config';
@@ -229,15 +229,12 @@ export function render_tilesheets(size: number, render: (context: CanvasRenderin
     let hash = Array.from(new Uint8Array(hash_raw))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
-    // let hash = crypto.createHash('sha256')
-    //   .update(render.toString())
-    //   .digest('hex');
 
     let raw = localStorage.getItem('mfro:tetris-tilesheet');
     if (raw) {
       let cache: ImageCache = JSON.parse(raw);
       if (cache.hash == hash) {
-        console.log(`tilesheet hash match ${hash}`);
+        // console.log(`tilesheet hash match ${hash}`);
         callback(cache.list);
         return;
       } else {

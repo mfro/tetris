@@ -107,6 +107,8 @@ export namespace wall_kicks {
     [tetronimos.S, no_kick_data],
     [tetronimos.Z, no_kick_data],
   ]);
+
+  export const all = [none, standard, asira];
 }
 
 export interface GameRules {
@@ -125,6 +127,30 @@ export interface GameRules {
 
   // number of Tetronimos to pre-generate in the queue
   bag_preview: 5,
+}
+
+export namespace GameRules {
+  export function save(rules: GameRules): any {
+    return {
+      field_size: [rules.field_size.x, rules.field_size.y],
+      fall_delay: rules.fall_delay,
+      lock_delay: rules.lock_delay,
+      move_reset_limit: rules.move_reset_limit,
+      wall_kicks: wall_kicks.all.indexOf(rules.wall_kicks),
+      bag_preview: rules.bag_preview,
+    };
+  }
+
+  export function load(src: any): GameRules {
+    return {
+      field_size: new Vec(src.field_size[0], src.field_size[1]),
+      fall_delay: src.fall_delay,
+      lock_delay: src.lock_delay,
+      move_reset_limit: src.move_reset_limit,
+      wall_kicks: wall_kicks.all[src.wall_kicks],
+      bag_preview: src.bag_preview,
+    };
+  }
 }
 
 export interface UserPreferences {

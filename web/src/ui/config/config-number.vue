@@ -11,7 +11,7 @@
 </template>
 
 <script>
-import { shallowReactive, watch } from 'vue';
+import { nextTick, shallowReactive, watch } from 'vue';
 
 export default {
   name: 'config-number',
@@ -46,13 +46,14 @@ export default {
           state.error = true;
         } else {
           state.error = false;
-          emit('update:modelValue', num);
+          nextTick(() => emit('update:modelValue', num));
         }
       },
 
       onBlur() {
-        state.editing = props.modelValue.toString();
-        state.error = false;
+        // debugger;
+        // state.editing = props.modelValue.toString();
+        // state.error = false;
       },
     };
   },

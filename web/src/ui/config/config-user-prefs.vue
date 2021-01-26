@@ -17,9 +17,9 @@ import configNumber from './config-number';
 
 function field(emit, target, key, get = v => v, set = v => v) {
   return computed({
-    get: () => get(target[key]),
+    get: () => get(target()[key]),
     set: (value) => {
-      let rules = { ...target, [key]: set(value) };
+      let rules = { ...target(), [key]: set(value) };
       emit('update:modelValue', rules);
     },
   });
@@ -38,8 +38,8 @@ export default {
   },
 
   setup(props, { emit }) {
-    let autoshift = field(emit, props.modelValue, 'autoshift');
-    let soft_drop = field(emit, props.modelValue, 'soft_drop');
+    let autoshift = field(emit, () => props.modelValue, 'autoshift');
+    let soft_drop = field(emit, () => props.modelValue, 'soft_drop');
 
     return {
       autoshift,

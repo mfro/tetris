@@ -52,9 +52,9 @@ const wallKickOptions = [
 
 function field(emit, target, key, get = v => v, set = v => v) {
   return computed({
-    get: () => get(target[key]),
+    get: () => get(target()[key]),
     set: (value) => {
-      let rules = { ...target, [key]: set(value) };
+      let rules = { ...target(), [key]: set(value) };
       emit('update:modelValue', rules);
     },
   });
@@ -74,11 +74,11 @@ export default {
   },
 
   setup(props, { emit }) {
-    let gravity = field(emit, props.modelValue, 'fall_delay', v => 1 / v, v => 1 / v);
-    let lock_delay = field(emit, props.modelValue, 'lock_delay');
-    let move_reset_limit = field(emit, props.modelValue, 'move_reset_limit');
-    let bag_preview = field(emit, props.modelValue, 'bag_preview');
-    let wall_kicks = field(emit, props.modelValue, 'wall_kicks');
+    let gravity = field(emit, () => props.modelValue, 'fall_delay', v => 1 / v, v => 1 / v);
+    let lock_delay = field(emit, () => props.modelValue, 'lock_delay');
+    let move_reset_limit = field(emit, () => props.modelValue, 'move_reset_limit');
+    let bag_preview = field(emit, () => props.modelValue, 'bag_preview');
+    let wall_kicks = field(emit, () => props.modelValue, 'wall_kicks');
 
     return {
       gravity,

@@ -3562,6 +3562,19 @@ websocket.Sender = sender;
 
 var ws = websocket;
 
+function Event$1() {
+    return { callbacks: [] };
+}
+function on(e, callback) {
+    e.callbacks.push(callback);
+}
+function emit(e, value) {
+    let list = e.callbacks.slice();
+    for (let callback of list) {
+        callback(value);
+    }
+}
+
 var Identity;
 (function (Identity) {
     function create() {
@@ -3614,12 +3627,41 @@ var Dispatch;
     Dispatch.create = create;
 })(Dispatch || (Dispatch = {}));
 
+const socket_events = new WeakMap();
+function setup_events(socket) {
+    let events = new Map();
+    socket.addEventListener('message', e => {
+        try {
+            let [packet, value] = Packet.unseal(JSON.parse(e.data));
+            let event = events.get(packet);
+            if (event) {
+                emit(event, value);
+            }
+        }
+        catch (_a) { }
+    });
+    return events;
+}
 function send(socket, ty, value) {
     let sealed = Packet.seal(ty, value);
     socket.send(JSON.stringify(sealed));
 }
+function receive(socket, ty) {
+    let map = socket_events.get(socket);
+    if (!map)
+        socket_events.set(socket, map = setup_events(socket));
+    let event = map.get(ty);
+    if (!event)
+        map.set(ty, event = Event$1());
+    return event;
+}
 
 const RoomCode = Packet.define();
+const RoomState = Packet.define();
+const StartGameRequest = Packet.define();
+const StartGame = Packet.define();
+const ClientUpdate = Packet.define();
+const BroadcastUpdate = Packet.define();
 
 let port = process.argv[2] ? parseInt(process.argv[2]) : 8081;
 const rooms = new Map();
@@ -3628,15 +3670,19 @@ const server = new ws.Server({
 });
 function new_room() {
     let code = Math.floor(Math.random() * 0x1000000).toString(16);
-    let room = { clients: [] };
+    let room = { rules: {}, clients: [] };
     rooms.set(code, room);
     return [code, room];
 }
 server.on('connection', (socket, request) => {
     if (request.url == null)
         return socket.close();
-    let url = new require$$1.URL(request.url, 'chess:/');
+    let url = new require$$1.URL(request.url, 'tetris:/');
     let code = url.searchParams.get('code');
+    let name = url.searchParams.get('name');
+    if (name == null) {
+        return socket.close();
+    }
     let room;
     if (code == null) {
         [code, room] = new_room();
@@ -3648,20 +3694,42 @@ server.on('connection', (socket, request) => {
         }
     }
     send(socket, RoomCode, code);
-    let client = { socket };
+    let client = { index: 0, socket, name };
     room.clients.push(client);
+    update();
     socket.on('close', () => {
         let index = room.clients.indexOf(client);
         room.clients.splice(index, 1);
         if (room.clients.length == 0) {
             rooms.delete(code);
         }
-    });
-    socket.on('message', data => {
-        for (let other of room.clients) {
-            if (other == client)
-                continue;
-            other.socket.send(data);
+        else {
+            update();
         }
+    });
+    function update() {
+        const names = room.clients.map(c => c.name);
+        for (let i = 0; i < room.clients.length; ++i) {
+            send(room.clients[i].socket, RoomState, { names, index: i });
+        }
+    }
+    function broadcast(packet, value, skip) {
+        for (let client of room.clients) {
+            if (client != skip) {
+                send(client.socket, packet, value);
+            }
+        }
+    }
+    on(receive(socket, StartGameRequest), (config) => {
+        if (client != room.clients[0])
+            return;
+        for (let i = 0; i < room.clients.length; ++i) {
+            room.clients[i].index = i;
+        }
+        let players = room.clients.length;
+        broadcast(StartGame, Object.assign(Object.assign({}, config), { players }));
+    });
+    on(receive(socket, ClientUpdate), (update) => {
+        broadcast(BroadcastUpdate, [client.index, update], client);
     });
 });

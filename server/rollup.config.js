@@ -11,7 +11,9 @@ module.exports = {
     context: 'this',
     plugins: [
         typescript(),
-        nodeResolve(),
+        nodeResolve({
+            preferBuiltins: true,
+        }),
         commonjs({
             ignore: ['bufferutil', 'utf-8-validate'],
         }),

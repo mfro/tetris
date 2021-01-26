@@ -2,7 +2,7 @@ import alea from 'alea';
 import { customRef, reactive, shallowReactive, shallowRef } from 'vue';
 
 import { Vec } from '@/vec';
-import { assert } from '@/util';
+import { assert } from '@mfro/ts-common/assert';
 import { A, C, DOWN, isKeyDown, LEFT, onKeyDown, onKeyUp, RIGHT, S, SHIFT, SPACE, UP, X, Z } from '@/input';
 
 import { GameRules, GameState, tetronimos, UserPreferences } from './config';
@@ -284,8 +284,9 @@ export function new_game(rules: GameRules, state: GameState): Game {
 }
 
 export function play(user: UserPreferences, game: Game) {
-  let fall_time = 0;
   let move_reset = 0;
+  let lock_progress = 0;
+  let fall_progress = 0;
 
   let repeating = false;
   let shift_left = false;
@@ -324,9 +325,9 @@ export function play(user: UserPreferences, game: Game) {
   function try_drop() {
     if (game.state.dead || game.state.falling == null) return;
 
-    fall_time = 0;
+    fall_progress = 0;
 
-    if (game.drop(1) == 1) {
+    if (game.drop(1) > 0) {
       move_reset = game.rules.move_reset_limit ?? Infinity;
     }
   }
@@ -335,9 +336,9 @@ export function play(user: UserPreferences, game: Game) {
   function try_move_reset() {
     if (game.state.dead || game.state.falling == null) return;
 
-    if (is_on_ground(game.state.falling) && move_reset > 0) {
+    if (lock_progress > 0 && move_reset > 0) {
       move_reset -= 1;
-      fall_time = 0;
+      lock_progress = 0;
     }
   }
 
@@ -426,7 +427,7 @@ export function play(user: UserPreferences, game: Game) {
   onKeyUp(RIGHT, () => release_shift(1));
   onKeyDown(RIGHT, () => press_shift(1));
 
-  onKeyDown(DOWN, () => try_drop());
+  // onKeyDown(DOWN, () => try_drop());
 
   onKeyDown(SPACE, () => hard_drop());
 
@@ -445,27 +446,34 @@ export function play(user: UserPreferences, game: Game) {
       shift(repeat_shift);
     }
 
-    while (game.state.falling) {
-      let fall_delay;
-      if (is_on_ground(game.state.falling))
-        fall_delay = game.rules.lock_delay;
-      else if (isKeyDown(DOWN))
-        fall_delay = game.rules.fall_delay / user.soft_drop;
-      else
-        fall_delay = game.rules.fall_delay;
+    if (game.state.falling != null) {
+      if (is_on_ground(game.state.falling)) {
+        lock_progress += 1 / game.rules.lock_delay;
+        fall_progress = Math.min(fall_progress, Math.ceil(1 / game.rules.fall_delay));
 
-      if (fall_time < fall_delay) break;
-
-      if (game.drop(1) == 1) {
-        move_reset = game.rules.move_reset_limit ?? Infinity;
-        fall_time -= fall_delay;
+        if (lock_progress >= 1) {
+          fall_progress = 0;
+          lock_progress = 0;
+          lock_down();
+        }
       } else {
-        fall_time = 0;
-        lock_down();
+        if (isKeyDown(DOWN))
+          fall_progress += 1 / game.rules.fall_delay * user.soft_drop;
+        else
+          fall_progress += 1 / game.rules.fall_delay
+
+        if (fall_progress > 1) {
+          let drop = Math.floor(fall_progress);
+          let move = game.drop(drop);
+          if (move > 0)
+            move_reset = game.rules.move_reset_limit ?? Infinity;
+          if (move == drop)
+            fall_progress -= drop;
+          else
+            fall_progress = 0;
+        }
       }
     }
-
-    fall_time += 1;
   }
 
   return () => clearInterval(cancel);

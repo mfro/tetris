@@ -1,6 +1,6 @@
 {
-  "name": "@mfro/tetris-common",
-  "version": "0.1.0",
+  "name": "common",
+  "version": "0.0.0",
   "private": true,
   "scripts": {
     "build": "rollup -c rollup.config.js",
