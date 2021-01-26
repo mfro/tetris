@@ -302,7 +302,9 @@ export function play(user: UserPreferences, game: Game) {
 
     if (game.new_falling()) {
       move_reset = game.rules.move_reset_limit ?? Infinity;
-      try_drop();
+      lock_progress = 0;
+      fall_progress = 0;
+      game.drop(1);
     } else {
       game.end_game();
     }
@@ -319,17 +321,6 @@ export function play(user: UserPreferences, game: Game) {
   function lock_down() {
     game.lock_down();
     new_falling();
-  }
-
-  /** try to drop the falling tetronimo one tile */
-  function try_drop() {
-    if (game.state.dead || game.state.falling == null) return;
-
-    fall_progress = 0;
-
-    if (game.drop(1) > 0) {
-      move_reset = game.rules.move_reset_limit ?? Infinity;
-    }
   }
 
   /** reset the lock_delay, consuming a move reset */

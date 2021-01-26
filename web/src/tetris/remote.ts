@@ -11,6 +11,7 @@ import { GameRules, UserPreferences } from './config';
 interface Member {
   name: string;
   game: Game | null;
+  winner: boolean;
 }
 
 interface RemoteState {
@@ -59,7 +60,10 @@ export function create_room(name: string, user: UserPreferences, code: string | 
   }
 
   function check_exit() {
-    if (state.members.every((m, i) => !m.game || m.game.state.dead)) {
+    let playing = state.members.filter((m, i) => m.game && !m.game.state.dead);
+    if (playing.length == 1)
+      playing[0].winner = true;
+    else if (playing.length == 0) {
       state.local = null;
       for (let member of state.members) {
         member.game = null;
@@ -77,6 +81,8 @@ export function create_room(name: string, user: UserPreferences, code: string | 
     state.local = new_game(rules, s);
 
     for (let i = 0; i < config.players; ++i) {
+      state.members[i].winner = false;
+
       if (i == state.index) {
         state.members[i].game = state.local;
       } else {
@@ -123,7 +129,7 @@ export function create_room(name: string, user: UserPreferences, code: string | 
   });
 
   on(receive(socket, RoomState), ({ index, names }) => {
-    state.members = names.map(name => ({ name, game: null }));
+    state.members = names.map(name => ({ name, game: null, winner: false }));
     state.index = index;
 
     if (state.members.length > 1) {
@@ -131,6 +137,8 @@ export function create_room(name: string, user: UserPreferences, code: string | 
       url.searchParams.set('code', state.code!);
       window.history.replaceState(null, document.title, url.pathname + url.search);
     }
+
+    check_exit();
   });
 
   return state;

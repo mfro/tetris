@@ -17,8 +17,9 @@
       </template>
 
       <v-flex column class="pt-4">
-        <v-flex v-for="member in room.members" :key="member" class="pa-3 px-4">
-          <v-text>{{ member.name }}</v-text>
+        <v-flex v-for="member in room.members" :key="member" class="px-4">
+          <v-icon class="mr-3" v-if="member.winner" style="color: #ffc107">emoji_events</v-icon>
+          <v-text class="my-3">{{ member.name }}</v-text>
         </v-flex>
       </v-flex>
 
