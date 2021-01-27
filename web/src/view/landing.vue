@@ -119,16 +119,3 @@ export default {
   },
 };
 </script>
-
-<style lang="scss">
-#app {
-  width: 100vw;
-  height: 100vh;
-}
-</style>
-
-<style lang="scss" scoped>
-canvas {
-  width: 0;
-}
-</style>

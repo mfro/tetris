@@ -3,7 +3,7 @@
 </template>
 
 <script>
-import { onMounted, ref, shallowRef, toRef, watch } from 'vue';
+import { onMounted, ref, toRef, watch } from 'vue';
 
 import { render as pixi_render } from '@/tetris/render/pixi';
 
@@ -33,6 +33,3 @@ export default {
   },
 };
 </script>
-
-<style>
-</style>

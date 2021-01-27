@@ -62,44 +62,6 @@ export default {
       }
     }, { immediate: true });
 
-    // let top = computed({
-    //   get: () => {
-    //     if (props.modelValue > 1) {
-    //       return props.modelValue.toString();
-    //     } else {
-    //       return '1';
-    //     }
-    //   },
-
-    //   set: (v) => {
-    //     let num = parseInt(v);
-
-    //     if (props.filter && !props.filter(num))
-    //       return;
-
-    //     emit('update:modelValue', num);
-    //   },
-    // });
-
-    // let bot = computed({
-    //   get: () => {
-    //     if (props.modelValue < 1) {
-    //       return (1 / props.modelValue).toString();
-    //     } else {
-    //       return '1';
-    //     }
-    //   },
-
-    //   set: (v) => {
-    //     let num = 1 / parseInt(v);
-
-    //     if (props.filter && !props.filter(num))
-    //       return;
-
-    //     emit('update:modelValue', num);
-    //   },
-    // });
-
     return {
       state,
 
@@ -133,13 +95,6 @@ export default {
   },
 };
 </script>
-
-<style lang="scss" module>
-div.root :global(input) {
-  width: 10ch;
-  // text-align: end;
-}
-</style>
 
 <style lang="scss" scoped>
 @import "@mfro/vue-ui/src/style.scss";

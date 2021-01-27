@@ -49,12 +49,6 @@ export default {
           nextTick(() => emit('update:modelValue', num));
         }
       },
-
-      onBlur() {
-        // debugger;
-        // state.editing = props.modelValue.toString();
-        // state.error = false;
-      },
     };
   },
 };
@@ -63,6 +57,5 @@ export default {
 <style lang="scss" module>
 div.root :global(input) {
   width: 10ch;
-  // text-align: end;
 }
 </style>
