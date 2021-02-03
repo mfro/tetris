@@ -7,6 +7,8 @@
     v-model="soft_drop"
     :filter="(v) => v >= 0"
   />
+
+  <config-render v-model="render" />
 </template>
 
 <script>
@@ -14,6 +16,7 @@ import { computed } from 'vue';
 
 import configAutoshift from './config-autoshift';
 import configNumber from './config-number';
+import configRender from './config-render';
 
 function field(emit, target, key, get = v => v, set = v => v) {
   return computed({
@@ -30,6 +33,7 @@ export default {
   components: {
     configAutoshift,
     configNumber,
+    configRender,
   },
 
   emits: ['update:modelValue'],
@@ -40,10 +44,12 @@ export default {
   setup(props, { emit }) {
     let autoshift = field(emit, () => props.modelValue, 'autoshift');
     let soft_drop = field(emit, () => props.modelValue, 'soft_drop');
+    let render = field(emit, () => props.modelValue, 'render');
 
     return {
       autoshift,
       soft_drop,
+      render,
     };
   },
 };

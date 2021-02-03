@@ -12,6 +12,8 @@ export type GameUpdate =
   | { type: 'shift', dir: 1 | -1 }
   | { type: 'rotate', dir: 1 | -1 }
   | { type: 'lock_down' }
+  | { type: 'send_lines', count: number }
+  | { type: 'apply_garbage' }
   | { type: 'new_falling' }
   | { type: 'end_game' }
 

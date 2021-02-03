@@ -1,202 +1,412 @@
 import { Vec } from '@/vec';
 import { assert } from '@mfro/ts-common/assert';
+import { isContext } from 'vm';
 
 import { TetronimoKind, Tetronimo, pieces, Game } from '..';
-import { tetronimos } from '../config';
+import { GameRules, tetronimos } from '../config';
 
-/** draw a single tile of a tetronimo */
-export const draw_styles = {
-  v1(context: CanvasRenderingContext2D, position: Vec, kind: TetronimoKind, surroundings: boolean[], style: TileStyle) {
-    const colors = new Map([
-      [tetronimos.I, '#31c7ef'],
-      [tetronimos.O, '#e39f02'],
-      [tetronimos.T, '#af298a'],
-      [tetronimos.J, '#2141c6'],
-      [tetronimos.L, '#e35b02'],
-      [tetronimos.S, '#59b101'],
-      [tetronimos.Z, '#d70f37'],
-    ]);
+export interface Renderer {
+  tile_size: number;
+  smoothing: boolean;
+  render_tile(context: CanvasRenderingContext2D, kind: TetronimoKind, around: boolean[], style: TileStyle): void;
+  render_background(context: CanvasRenderingContext2D, rules: GameRules, origin: Vec): void;
+}
 
-    const p = position;
+export type RenderConfig =
+  | { style: 'v1', size: number, smooth: boolean, border: number }
+  | { style: 'v2', size: number, smooth: boolean, border: number, ghost_opacity: number }
+  | { style: 'tetrio', ghost_color: boolean };
+
+export function make_renderer(config: RenderConfig): Renderer {
+  function default_background(context: CanvasRenderingContext2D, rules: GameRules, origin: Vec, scale: number) {
+    function draw_ui(size: number, center: Vec) {
+      let topleft = Vec.add(center, new Vec(-2, -2));
+      let botrite = Vec.add(center, new Vec(2, -1 + 3 * size));
+
+      context.lineCap = 'butt';
+      context.lineJoin = 'miter';
+      context.strokeStyle = 'gray'
+      context.beginPath();
+
+      const thickness = 2 * pixel;
+      const length = 8 * pixel;
+
+      context.lineWidth = thickness;
+
+      context.moveTo(topleft.x + thickness / 2, topleft.y + length);
+      context.lineTo(topleft.x + thickness / 2, topleft.y + thickness / 2);
+      context.lineTo(topleft.x + length, topleft.y + thickness / 2);
+
+      context.moveTo(botrite.x - length, topleft.y + thickness / 2);
+      context.lineTo(botrite.x - thickness / 2, topleft.y + thickness / 2);
+      context.lineTo(botrite.x - thickness / 2, topleft.y + length);
+
+      context.moveTo(botrite.x - thickness / 2, botrite.y - length);
+      context.lineTo(botrite.x - thickness / 2, botrite.y - thickness / 2);
+      context.lineTo(botrite.x - length, botrite.y - thickness / 2);
+
+      context.moveTo(topleft.x + length, botrite.y - thickness / 2);
+      context.lineTo(topleft.x + thickness / 2, botrite.y - thickness / 2);
+      context.lineTo(topleft.x + thickness / 2, botrite.y - length);
+
+      context.stroke();
+    }
+
+    const pixel = 1 / scale;
 
     context.save();
-    if (style == TileStyle.ghost) {
-      context.fillStyle = 'white';
-      context.fillRect(p.x, p.y, 1, 1);
-    } else if (style == TileStyle.disabled) {
-      context.filter = 'grayscale(100%)';
-    } else {
+
+    context.scale(scale, scale);
+    context.translate(origin.x, origin.y);
+
+    draw_ui(1, new Vec(-3, 3));
+    draw_ui(rules.bag_preview, new Vec(rules.field_size.x + 3, 3));
+
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, rules.field_size.x, rules.field_size.y / 2);
+
+    context.lineWidth = 1 * pixel;
+    context.strokeStyle = '#f4f4f4';
+    for (let x = 0; x < rules.field_size.x - 1; ++x) {
+      context.beginPath();
+      // context.moveTo(x + 0.5 * pixel, 0);
+      // context.lineTo(x + 0.5 * pixel, rules.field_size.y);
+      context.moveTo((x + 1) - 0.5 * pixel, 0);
+      context.lineTo((x + 1) - 0.5 * pixel, rules.field_size.y / 2);
+      context.stroke();
+    }
+
+    for (let y = 0; y < rules.field_size.y / 2 - 1; ++y) {
+      context.beginPath();
+      // context.moveTo(0, y + 0.5 * pixel);
+      // context.lineTo(rules.field_size.x, y + 0.5 * pixel);
+      context.moveTo(0, (y + 1) - 0.5 * pixel);
+      context.lineTo(rules.field_size.x, (y + 1) - 0.5 * pixel);
+      context.stroke();
+    }
+
+    context.translate(0, -rules.field_size.y / 2);
+
+    context.restore();
+  }
+
+  if (config.style == 'v1') return {
+    tile_size: config.size,
+    smoothing: config.smooth,
+    render_tile(context, kind, around, style) {
+      const colors = new Map([
+        [tetronimos.I, '#31c7ef'],
+        [tetronimos.O, '#e39f02'],
+        [tetronimos.T, '#af298a'],
+        [tetronimos.J, '#2141c6'],
+        [tetronimos.L, '#e35b02'],
+        [tetronimos.S, '#59b101'],
+        [tetronimos.Z, '#d70f37'],
+        [tetronimos.GARBAGE, 'gray'],
+      ]);
+
+      context.save();
+      if (style == TileStyle.ghost) {
+        context.fillStyle = 'white';
+        context.fillRect(0, 0, 1, 1);
+      } else if (style == TileStyle.disabled) {
+        context.filter = 'grayscale(100%)';
+      } else {
+        let color = colors.get(kind);
+        assert(color != null, `no color for piece`);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+      }
+
+      const border = config.border / config.size;
+
+      context.beginPath();
+      context.lineCap = 'butt';
+      context.lineWidth = border;
+      context.strokeStyle = '#00000040';
+
+      if (around[0]) {
+        context.moveTo(0, border / 2);
+        context.lineTo(border / 2, border / 2);
+        context.lineTo(border / 2, 0);
+      }
+
+      if (around[1]) {
+        context.moveTo(0, border / 2);
+        context.lineTo(1, border / 2);
+      }
+
+      if (around[2]) {
+        context.moveTo(1 - border / 2, 0);
+        context.lineTo(1 - border / 2, border / 2);
+        context.lineTo(1, border / 2);
+      }
+
+      if (around[3]) {
+        context.moveTo(-border / 2 + 1, 0);
+        context.lineTo(-border / 2 + 1, 1);
+      }
+
+      if (around[4]) {
+        context.moveTo(1, 1 - border / 2);
+        context.lineTo(1 - border / 2, 1 - border / 2);
+        context.lineTo(1 - border / 2, 1);
+      }
+
+      if (around[5]) {
+        context.moveTo(1, -border / 2 + 1);
+        context.lineTo(0, -border / 2 + 1);
+      }
+
+      if (around[6]) {
+        context.moveTo(border / 2, 1);
+        context.lineTo(border / 2, 1 - border / 2);
+        context.lineTo(0, 1 - border / 2);
+      }
+
+      if (around[7]) {
+        context.moveTo(border / 2, 1);
+        context.lineTo(border / 2, 0);
+      }
+
+      // context.strokeStyle = kind.color;
+      // context.stroke();
+
+      context.strokeStyle = '#00000040';
+      context.stroke();
+
+      context.filter = 'none';
+      context.restore();
+    },
+    render_background: (c, r, o) => default_background(c, r, o, config.size),
+  };
+
+  if (config.style == 'v2') return {
+    tile_size: config.size,
+    smoothing: config.smooth,
+    render_tile(context, kind, around, style) {
+      const border = config.border / config.size;
+
+      const colors = new Map([
+        [tetronimos.I, ['#31c7ef', '#48e0ff', '#20b0e0']],
+        [tetronimos.O, ['#f7d308', '#ffec1c', '#e8c000']],
+        [tetronimos.T, ['#ad4d9c', '#c658b4', '#983888']],
+        [tetronimos.J, ['#5a65ad', '#6680cc', '#4857a0']],
+        [tetronimos.L, ['#ef7921', '#ff9030', '#e06810']],
+        [tetronimos.S, ['#42b642', '#48d048', '#30a030']],
+        [tetronimos.Z, ['#ef2029', '#ff4848', '#d01818']],
+        [tetronimos.GARBAGE, ['#42b642', '#48d048', '#30a030']],
+        // [tetronimos.GARBAGE, ['#9e9e9e', '#bdbdbd', '#757575']],
+      ]);
+
       let color = colors.get(kind);
       assert(color != null, `no color for piece`);
-      context.fillStyle = color;
-      context.fillRect(p.x, p.y, 1, 1);
-    }
 
-    const border = 1 / 8;
+      context.save();
+      if (style == TileStyle.ghost) {
+        context.fillStyle = 'white';
+        context.fillRect(0, 0, 1, 1);
+        context.globalAlpha = config.ghost_opacity;
+      }
 
-    context.beginPath();
-    context.lineCap = 'butt';
-    context.lineWidth = border;
-    context.strokeStyle = '#00000040';
+      if (style == TileStyle.disabled || kind == tetronimos.GARBAGE) {
+        context.filter = 'grayscale(100%)';
+      }
 
-    if (surroundings[0]) {
-      context.moveTo(p.x, p.y + border / 2);
-      context.lineTo(p.x + border / 2, p.y + border / 2);
-      context.lineTo(p.x + border / 2, p.y);
-    }
+      const left_inner = border;
+      const left_outer = border / 2;
+      const right_inner = 1 - border;
+      const right_outer = 1 - border / 2;
 
-    if (surroundings[1]) {
-      context.moveTo(p.x, p.y + border / 2);
-      context.lineTo(p.x + 1, p.y + border / 2);
-    }
+      context.fillStyle = color[0];
+      context.fillRect(left_inner, left_inner, 1 - 2 * border, 1 - 2 * border);
 
-    if (surroundings[2]) {
-      context.moveTo(p.x + 1 - border / 2, p.y);
-      context.lineTo(p.x + 1 - border / 2, p.y + border / 2);
-      context.lineTo(p.x + 1, p.y + border / 2);
-    }
+      context.lineCap = 'butt';
+      context.lineWidth = border;
 
-    if (surroundings[3]) {
-      context.moveTo(p.x - border / 2 + 1, p.y);
-      context.lineTo(p.x - border / 2 + 1, p.y + 1);
-    }
+      context.beginPath();
+      context.moveTo(left_outer, right_inner);
+      context.lineTo(left_outer, left_inner);
+      context.strokeStyle = around[7] ? color[1] : color[0];
+      context.stroke();
 
-    if (surroundings[4]) {
-      context.moveTo(p.x + 1, p.y + 1 - border / 2);
-      context.lineTo(p.x + 1 - border / 2, p.y + 1 - border / 2);
-      context.lineTo(p.x + 1 - border / 2, p.y + 1);
-    }
+      context.beginPath();
+      context.moveTo(left_inner, left_outer);
+      context.lineTo(right_inner, left_outer);
+      context.strokeStyle = around[1] ? color[1] : color[0];
+      context.stroke();
 
-    if (surroundings[5]) {
-      context.moveTo(p.x + 1, p.y - border / 2 + 1);
-      context.lineTo(p.x, p.y - border / 2 + 1);
-    }
+      context.beginPath();
+      context.moveTo(0, left_outer);
+      context.lineTo(left_outer, left_outer);
+      context.lineTo(left_outer, 0);
+      context.strokeStyle = around[0] || around[7] || around[1] ? color[1] : color[0];
+      context.stroke();
 
-    if (surroundings[6]) {
-      context.moveTo(p.x + border / 2, p.y + 1);
-      context.lineTo(p.x + border / 2, p.y + 1 - border / 2);
-      context.lineTo(p.x, p.y + 1 - border / 2);
-    }
+      context.beginPath();
+      context.moveTo(right_outer, left_inner);
+      context.lineTo(right_outer, right_inner);
+      context.strokeStyle = around[3] ? color[2] : color[0];
+      context.stroke();
 
-    if (surroundings[7]) {
-      context.moveTo(p.x + border / 2, p.y + 1);
-      context.lineTo(p.x + border / 2, p.y);
-    }
+      context.beginPath();
+      context.moveTo(right_inner, right_outer);
+      context.lineTo(left_inner, right_outer);
+      context.strokeStyle = around[5] ? color[2] : color[0];
+      context.stroke();
 
-    // context.strokeStyle = kind.color;
-    // context.stroke();
+      context.beginPath();
+      context.moveTo(1, right_outer);
+      context.lineTo(right_outer, right_outer);
+      context.lineTo(right_outer, 1);
+      context.strokeStyle = around[4] || around[3] || around[5] ? color[2] : color[0];
+      context.stroke();
 
-    context.strokeStyle = '#00000040';
-    context.stroke();
+      context.beginPath();
+      context.moveTo(right_outer, 0);
+      context.lineTo(right_outer, left_outer);
+      context.lineTo(1, left_outer);
+      context.strokeStyle = around[2] && around[1] && around[3] ? color[0]
+        : around[1] ? color[1]
+          : around[3] ? color[2]
+            : around[2] ? color[2]
+              : color[0];
+      context.stroke();
 
-    context.filter = 'none';
-    context.restore();
-  },
+      context.beginPath();
+      context.moveTo(left_outer, 1);
+      context.lineTo(left_outer, right_outer);
+      context.lineTo(0, right_outer);
+      context.strokeStyle = around[6] && around[7] && around[5] ? color[0]
+        : around[7] ? color[1]
+          : around[5] ? color[2]
+            : around[6] ? color[1]
+              : color[0];
+      context.stroke();
 
-  v2(context: CanvasRenderingContext2D, position: Vec, kind: TetronimoKind, surroundings: boolean[], style: TileStyle) {
-    const border = 1 / 8;
+      context.filter = 'none';
+      context.restore();
+    },
+    render_background: (c, r, o) => default_background(c, r, o, config.size),
+  };
 
-    const colors = new Map([
-      [tetronimos.I, ['#31c7ef', '#48e0ff', '#20b0e0']],
-      [tetronimos.O, ['#f7d308', '#ffec1c', '#e8c000']],
-      [tetronimos.T, ['#ad4d9c', '#c658b4', '#983888']],
-      [tetronimos.J, ['#5a65ad', '#6680cc', '#4857a0']],
-      [tetronimos.L, ['#ef7921', '#ff9030', '#e06810']],
-      [tetronimos.S, ['#42b642', '#48d048', '#30a030']],
-      [tetronimos.Z, ['#ef2029', '#ff4848', '#d01818']],
-    ]);
+  if (config.style == 'tetrio') {
+    const sprites = new Image();
+    sprites.src = require('@/assets/tetrio.png');
 
-    const p = position;
+    const background = new Image();
+    background.src = require('@/assets/tetrio-bg.png');
 
-    let color = colors.get(kind);
-    assert(color != null, `no color for piece`);
+    const order = [
+      tetronimos.Z,
+      tetronimos.L,
+      tetronimos.O,
+      tetronimos.S,
+      tetronimos.I,
+      tetronimos.J,
+      tetronimos.T,
+    ];
 
-    context.save();
-    if (style == TileStyle.ghost) {
-      context.fillStyle = 'white';
-      context.fillRect(p.x, p.y, 1, 1);
-      context.globalAlpha = 0.4;
-    } else if (style == TileStyle.disabled) {
-      context.filter = 'grayscale(100%)';
-    }
+    return {
+      tile_size: 30,
+      smoothing: false,
+      render_tile(context, kind, around, style) {
+        context.save();
 
-    context.translate(p.x, p.y);
+        let index;
+        if (style == TileStyle.disabled || kind == tetronimos.GARBAGE) {
+          index = 9;
+        } else {
+          index = order.indexOf(kind);
+        }
 
-    const left_inner = border;
-    const left_outer = border / 2;
-    const right_inner = 1 - border;
-    const right_outer = 1 - border / 2;
+        if (style == TileStyle.ghost) {
+          context.globalAlpha = 0.2;
+          context.drawImage(sprites, 7 * 31, 0, 30, 30, 0, 0, 1, 1);
+          if (config.ghost_color) {
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'source-atop';
+            context.drawImage(sprites, index * 31, 0, 30, 30, 0, 0, 1, 1);
+          }
+        } else {
+          context.drawImage(sprites, index * 31, 0, 30, 30, 0, 0, 1, 1);
+        }
 
-    context.fillStyle = color[0];
-    context.fillRect(left_inner, left_inner, 1 - 2 * border, 1 - 2 * border);
+        context.restore();
+      },
+      render_background(context, rules, origin) {
+        function draw_ui(size: number, center: Vec) {
+          context.fillStyle = '#000000e0';
+          context.fillRect(center.x - 2, center.y - 2, 4, 1 + 3 * size);
 
-    context.lineCap = 'butt';
-    context.lineWidth = border;
+          const thickness = 0.125;
+          context.strokeStyle = '#ffffffe0';
+          context.lineJoin = 'round';
+          context.lineWidth = thickness;
+          context.strokeRect(center.x - 2 - thickness / 2, center.y - 2 - thickness / 2, 4 + thickness, 1 + 3 * size + thickness);
+        }
 
-    context.beginPath();
-    context.moveTo(left_outer, right_inner);
-    context.lineTo(left_outer, left_inner);
-    context.strokeStyle = surroundings[7] ? color[1] : color[0];
-    context.stroke();
+        const pixel = 1 / 30;
 
-    context.beginPath();
-    context.moveTo(left_inner, left_outer);
-    context.lineTo(right_inner, left_outer);
-    context.strokeStyle = surroundings[1] ? color[1] : color[0];
-    context.stroke();
+        context.save();
 
-    context.beginPath();
-    context.moveTo(0, left_outer);
-    context.lineTo(left_outer, left_outer);
-    context.lineTo(left_outer, 0);
-    context.strokeStyle = surroundings[0] || surroundings[7] || surroundings[1] ? color[1] : color[0];
-    context.stroke();
+        context.drawImage(background, 0, 0, 2000, 1333, 30 * (origin.x + rules.field_size.x / 2) - 1000, 0, 2000, 1333);
 
-    context.beginPath();
-    context.moveTo(right_outer, left_inner);
-    context.lineTo(right_outer, right_inner);
-    context.strokeStyle = surroundings[3] ? color[2] : color[0];
-    context.stroke();
+        context.fillStyle = '#000000a0';
+        context.fillRect(0, 0, 2000, 1333);
 
-    context.beginPath();
-    context.moveTo(right_inner, right_outer);
-    context.lineTo(left_inner, right_outer);
-    context.strokeStyle = surroundings[5] ? color[2] : color[0];
-    context.stroke();
+        context.scale(30, 30);
+        context.translate(origin.x, origin.y);
 
-    context.beginPath();
-    context.moveTo(1, right_outer);
-    context.lineTo(right_outer, right_outer);
-    context.lineTo(right_outer, 1);
-    context.strokeStyle = surroundings[4] || surroundings[3] || surroundings[5] ? color[2] : color[0];
-    context.stroke();
+        const thickness = 0.125;
+        context.strokeStyle = '#ffffffe0';
+        context.lineCap = 'butt';
+        context.lineJoin = 'round';
+        context.lineWidth = thickness;
+        context.beginPath();
+        context.moveTo(0, thickness / 2);
+        context.lineTo(-thickness / 2, thickness / 2);
+        context.lineTo(-thickness / 2, rules.field_size.y / 2 + thickness / 2);
+        context.lineTo(rules.field_size.x + thickness / 2, rules.field_size.y / 2 + thickness / 2);
+        context.lineTo(rules.field_size.x + thickness / 2, thickness / 2);
+        context.lineTo(rules.field_size.x, thickness / 2);
+        context.stroke();
 
-    context.beginPath();
-    context.moveTo(right_outer, 0);
-    context.lineTo(right_outer, left_outer);
-    context.lineTo(1, left_outer);
-    context.strokeStyle = surroundings[2] && surroundings[1] && surroundings[3] ? color[0]
-      : surroundings[1] ? color[1]
-        : surroundings[3] ? color[2]
-          : surroundings[2] ? color[2]
-            : color[0];
-    context.stroke();
+        draw_ui(1, new Vec(-3, 3));
+        draw_ui(rules.bag_preview, new Vec(rules.field_size.x + 3, 3));
 
-    context.beginPath();
-    context.moveTo(left_outer, 1);
-    context.lineTo(left_outer, right_outer);
-    context.lineTo(0, right_outer);
-    context.strokeStyle = surroundings[6] && surroundings[7] && surroundings[5] ? color[0]
-      : surroundings[7] ? color[1]
-        : surroundings[5] ? color[2]
-          : surroundings[6] ? color[1]
-            : color[0];
-    context.stroke();
+        context.fillStyle = '#000000e0';
+        context.fillRect(0, 0, rules.field_size.x, rules.field_size.y / 2);
 
-    context.filter = 'none';
-    context.restore();
-  },
-};
+        context.lineWidth = 1 * pixel;
+        context.strokeStyle = '#ffffff14';
+        for (let x = 0; x < rules.field_size.x - 1; ++x) {
+          context.beginPath();
+          // context.moveTo(x + 0.5 * pixel, 0);
+          // context.lineTo(x + 0.5 * pixel, rules.field_size.y);
+          context.moveTo((x + 1) - 0.5 * pixel, 0);
+          context.lineTo((x + 1) - 0.5 * pixel, rules.field_size.y / 2);
+          context.stroke();
+        }
+
+        for (let y = 0; y < rules.field_size.y / 2 - 1; ++y) {
+          context.beginPath();
+          // context.moveTo(0, y + 0.5 * pixel);
+          // context.lineTo(rules.field_size.x, y + 0.5 * pixel);
+          context.moveTo(0, (y + 1) - 0.5 * pixel);
+          context.lineTo(rules.field_size.x, (y + 1) - 0.5 * pixel);
+          context.stroke();
+        }
+
+        context.translate(0, -rules.field_size.y / 2);
+
+        context.restore();
+      },
+    };
+  }
+
+  throw new Error('invalid render config');
+}
 
 export enum TileStyle {
   normal,
@@ -204,105 +414,140 @@ export enum TileStyle {
   disabled,
 }
 
-const IMAGE_STRIDE = 256;
-export function image_offset(around: boolean[], style: TileStyle, size: number) {
-  let index = style << 8;
-
-  for (let i = 0; i < 8; ++i) {
-    if (around[i]) {
-      index |= (1 << i);
-    }
-  }
-
-  // return Vec.scale(new Vec(x, style), size);
-  return Vec.scale(new Vec(index % IMAGE_STRIDE, Math.floor(index / IMAGE_STRIDE)), size);
-}
-
 interface ImageCache {
   hash: string;
-  list: string[];
+  images: string[];
 }
 
-export function render_tilesheets(size: number, render: (context: CanvasRenderingContext2D, position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) => void, callback: (s: string[]) => void) {
-  let bytes = new TextEncoder().encode(render.toString());
-  window.crypto.subtle.digest('SHA-256', bytes).then(hash_raw => {
-    let hash = Array.from(new Uint8Array(hash_raw))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+export async function render_tilesheets(config: RenderConfig) {
+  const renderer = make_renderer(config);
+  const styles = [TileStyle.normal, TileStyle.ghost, TileStyle.disabled];
 
-    let raw = localStorage.getItem('mfro:tetris-tilesheet');
-    if (raw) {
-      let cache: ImageCache = JSON.parse(raw);
-      if (cache.hash == hash) {
-        // console.log(`tilesheet hash match ${hash}`);
-        callback(cache.list);
-        return;
-      } else {
-        console.log(`tilesheet hash match ${cache.hash} expected ${hash}`);
+  const canvas = document.createElement('canvas');
+
+  let offset_fn: (around: number, style: TileStyle) => Vec;
+  if (renderer.smoothing) {
+    const IMAGE_STRIDE = 256;
+
+    canvas.width = renderer.tile_size * IMAGE_STRIDE;
+    canvas.height = renderer.tile_size * styles.length * (256 / IMAGE_STRIDE);
+
+    offset_fn = (around, style) => {
+      let index = (around) | (style << 8);
+      return new Vec(index % IMAGE_STRIDE, Math.floor(index / IMAGE_STRIDE));
+    };
+  } else {
+    canvas.width = renderer.tile_size * styles.length;
+    canvas.height = renderer.tile_size;
+
+    offset_fn = (around, style) => new Vec(style, 0);
+  }
+
+  const lookup = (around: boolean[], style: TileStyle) => {
+    let index = 0;
+
+    for (let i = 0; i < 8; ++i) {
+      if (around[i]) {
+        index |= (1 << i);
       }
     }
 
-    const styles = [TileStyle.normal, TileStyle.ghost, TileStyle.disabled];
+    return Vec.scale(offset_fn(index, style), renderer.tile_size);
+  };
 
-    let canvas = document.createElement('canvas');
-    canvas.width = size * IMAGE_STRIDE;
-    canvas.height = size * styles.length * (256 / IMAGE_STRIDE);
+  let bytes = new TextEncoder().encode(JSON.stringify(config) + renderer.render_tile.toString());
+  let hash_raw = await window.crypto.subtle.digest('SHA-256', bytes);
+  let hash = Array.from(new Uint8Array(hash_raw))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 
-    let context = canvas.getContext('2d');
-    assert(context != null, 'no context');
+  let raw = localStorage.getItem('mfro:tetris-tilesheet');
+  if (raw) {
+    let cache: ImageCache = JSON.parse(raw);
+    if (cache.hash == hash) {
+      // console.log(`tilesheet hash match ${hash}`);
+      return [lookup, cache.images] as const;
+    } else {
+      console.log(`tilesheet cache miss ${cache.hash} expected ${hash}`);
+    }
+  }
 
-    context.scale(size, size);
+  const context = canvas.getContext('2d');
+  assert(context != null, 'no context');
 
-    let list: string[] = [];
+  context.scale(renderer.tile_size, renderer.tile_size);
 
-    for (let kind of tetronimos.all) {
-      context!.clearRect(0, 0, canvas.width, canvas.height);
+  let images = [];
+  let kinds = [...tetronimos.all, tetronimos.GARBAGE];
+  for (let kind of kinds) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
-      for (let style of styles) {
+    for (let style of styles) {
+      if (renderer.smoothing) {
         for (let i = 0; i < 256; ++i) {
           let around = [];
           for (let j = 0; j < 8; ++j) around[j] = (i & (1 << j)) != 0;
 
-          let offset = image_offset(around, style, 1);
-          render(context!, offset, kind, around, style);
+          let offset = offset_fn(i, style);
+          context.translate(offset.x, offset.y);
+          renderer.render_tile(context, kind, around, style);
+          context.translate(-offset.x, -offset.y);
         }
-      }
-
-      let url = canvas.toDataURL();
-      list.push(url);
-      if (list.length == tetronimos.all.length) {
-        localStorage.setItem('mfro:tetris-tilesheet', JSON.stringify({ hash, list }))
-        callback(list);
+      } else {
+        let around = [true, true, true, true, true, true, true, true];
+        let offset = offset_fn(0, style);
+        context.translate(offset.x, offset.y);
+        renderer.render_tile(context, kind, around, style);
+        context.translate(-offset.x, -offset.y);
       }
     }
-  });
+
+    let url = canvas.toDataURL();
+    images.push(url);
+    // console.log(url);
+  }
+
+  if (images.length == kinds.length) {
+    localStorage.setItem('mfro:tetris-tilesheet', JSON.stringify({ hash, images }))
+  }
+
+  return [lookup, images] as const;
 }
 
-function prerender(size: number, render: (context: CanvasRenderingContext2D, position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) => void) {
-  let images: HTMLImageElement[] = [];
-  // let images = render_tilesheets(size, render).map(s => {
-  //   let image = new Image();
-  //   image.src = s;
-  //   return image;
-  // });
+function prerender(config: RenderConfig): Renderer {
+  let base = make_renderer(config);
+  let impl: typeof base.render_tile;
 
-  return (context: CanvasRenderingContext2D, position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) => {
-    let sheet = images[tetronimos.all.indexOf(kind)];
-    let offset = image_offset(around, style, size);
+  render_tilesheets(config).then(([lookup, data]) => {
+    let images = data.map(url => {
+      let image = new Image();
+      image.src = url;
+      return image;
+    });
 
-    context.drawImage(sheet, offset.x, offset.y, size, size, position.x, position.y, 1, 1)
+    impl = (context, kind, around, style) => {
+      let sheet = images[kind == tetronimos.GARBAGE ? tetronimos.all.length : tetronimos.all.indexOf(kind)];
+      let offset = lookup(around, style);
+
+      context.drawImage(sheet, offset.x, offset.y, base.tile_size, base.tile_size, 0, 0, 1, 1)
+    };
+  });
+
+  return {
+    ...base,
+    render_tile(...args) {
+      return impl && impl(...args);
+    },
   };
 }
 
-export function render(canvas: HTMLCanvasElement, game: Game) {
-  const unit_size = 32;
-  const pixel = 1 / unit_size;
+export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
+  const renderer = prerender(config);
 
-  // const render_tile = draw_tile.v2;
-  const render_tile = prerender(unit_size, draw_styles.v2);
+  const unit_size = renderer.tile_size;
 
-  canvas.width = (game.rules.field_size.x + 12) * unit_size;
-  canvas.height = (game.rules.field_size.y / 2) * unit_size;
+  canvas.width = (game.rules.field_size.x + 14) * unit_size;
+  canvas.height = (game.rules.field_size.y / 2) * unit_size + 2;
   canvas.style.width = `${canvas.width}px`;
   canvas.style.height = `${canvas.height}px`;
 
@@ -340,43 +585,14 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
           .every(v => !Vec.eq(v, Vec.add(offset, adj)))
       );
 
-      render_tile(context, position, t.kind, diff, style);
+      context.translate(position.x, position.y);
+      renderer.render_tile(context, t.kind, diff, style);
+      context.translate(-position.x, -position.y);
     }
   }
 
   /** draw a tetronimo in the UI */
-  function draw_ui(kinds: TetronimoKind[], center: Vec) {
-    let topleft = Vec.add(center, new Vec(-2, -2));
-    let botrite = Vec.add(center, new Vec(2, -1 + 3 * kinds.length));
-
-    context.lineCap = 'butt';
-    context.lineJoin = 'miter';
-    context.strokeStyle = 'gray'
-    context.beginPath();
-
-    const thickness = 2 * pixel;
-    const length = 8 * pixel;
-
-    context.lineWidth = thickness;
-
-    context.moveTo(topleft.x + thickness / 2, topleft.y + length);
-    context.lineTo(topleft.x + thickness / 2, topleft.y + thickness / 2);
-    context.lineTo(topleft.x + length, topleft.y + thickness / 2);
-
-    context.moveTo(botrite.x - length, topleft.y + thickness / 2);
-    context.lineTo(botrite.x - thickness / 2, topleft.y + thickness / 2);
-    context.lineTo(botrite.x - thickness / 2, topleft.y + length);
-
-    context.moveTo(botrite.x - thickness / 2, botrite.y - length);
-    context.lineTo(botrite.x - thickness / 2, botrite.y - thickness / 2);
-    context.lineTo(botrite.x - length, botrite.y - thickness / 2);
-
-    context.moveTo(topleft.x + length, botrite.y - thickness / 2);
-    context.lineTo(topleft.x + thickness / 2, botrite.y - thickness / 2);
-    context.lineTo(topleft.x + thickness / 2, botrite.y - length);
-
-    context.stroke();
-
+  function draw_ui(kinds: TetronimoKind[], center: Vec, hold = false) {
     for (let kind of kinds) {
       let parts = pieces({ id: -1, kind, position: Vec.zero, rotation: 0 });
 
@@ -388,53 +604,31 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
       let offset = new Vec(-(minX + maxX) / 2, -(minY + maxY) / 2);
       let position = Vec.add(center, offset);
 
-      draw_tetronimo({ id: -1, kind, position, rotation: 0 }, TileStyle.normal);
+      let style = hold && !game.state.hold_available ? TileStyle.disabled : TileStyle.normal;
+      draw_tetronimo({ id: -1, kind, position, rotation: 0 }, style);
 
       center = Vec.add(center, new Vec(0, 3));
     }
   }
 
-  requestAnimationFrame(tick);
+  let cancel = requestAnimationFrame(tick);
   function tick() {
-    requestAnimationFrame(tick);
+    cancel = requestAnimationFrame(tick);
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.save();
 
-    context.scale(unit_size, unit_size);
-    context.translate(6, 0);
+    renderer.render_background(context, game.rules, new Vec(7, 1));
+
+    context.scale(renderer.tile_size, renderer.tile_size);
+    context.translate(7, 1);
 
     if (game.state.holding) {
-      context.save();
-      draw_ui([game.state.holding], new Vec(-3, 3));
-      context.restore();
+      draw_ui([game.state.holding], new Vec(-3, 3), true);
     }
 
     if (game.rules.bag_preview > 0) {
       draw_ui(game.state.fall_queue.slice(0, game.rules.bag_preview), new Vec(game.rules.field_size.x + 3, 3));
-    }
-
-    context.fillStyle = 'white';
-    context.fillRect(0, 0, game.rules.field_size.x, game.rules.field_size.y);
-
-    context.lineWidth = 1 * pixel;
-    context.strokeStyle = '#f4f4f4';
-    for (let x = 0; x < game.rules.field_size.x; ++x) {
-      context.beginPath();
-      context.moveTo(x + 0.5 * pixel, 0);
-      context.lineTo(x + 0.5 * pixel, game.rules.field_size.y);
-      context.moveTo((x + 1) - 0.5 * pixel, 0);
-      context.lineTo((x + 1) - 0.5 * pixel, game.rules.field_size.y);
-      context.stroke();
-    }
-
-    for (let y = 0; y < game.rules.field_size.y; ++y) {
-      context.beginPath();
-      context.moveTo(0, y + 0.5 * pixel);
-      context.lineTo(game.rules.field_size.x, y + 0.5 * pixel);
-      context.moveTo(0, (y + 1) - 0.5 * pixel);
-      context.lineTo(game.rules.field_size.x, (y + 1) - 0.5 * pixel);
-      context.stroke();
     }
 
     context.translate(0, -game.rules.field_size.y / 2);
@@ -455,10 +649,14 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
 
         let diff = adj8.map(adj => tile_at(Vec.add(position, adj))?.id != t!.id);
 
-        render_tile(context, new Vec(x, y), game.state.field[y][x]!.kind, diff, TileStyle.normal);
+        context.translate(x, y);
+        renderer.render_tile(context, game.state.field[y][x]!.kind, diff, TileStyle.normal);
+        context.translate(-x, -y);
       }
     }
 
     context.restore();
   }
+
+  return () => cancelAnimationFrame(cancel);
 }

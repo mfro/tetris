@@ -4,7 +4,6 @@
       :label="name"
       :model-value="state.editing"
       @update:model-value="onInput"
-      @blur="onBlur"
       :warning="state.error"
     />
   </v-tooltip>
@@ -40,7 +39,7 @@ export default {
       onInput(v) {
         state.editing = v;
 
-        let num = parseInt(v, 10);
+        let num = parseFloat(v);
 
         if (num.toString() != v || props.filter && !props.filter(num)) {
           state.error = true;

@@ -5,7 +5,7 @@ import { Vec } from '@/vec';
 import { assert } from '@mfro/ts-common/assert';
 import { A, C, DOWN, isKeyDown, LEFT, onKeyDown, onKeyUp, RIGHT, S, SHIFT, SPACE, UP, X, Z } from '@/input';
 
-import { GameRules, GameState, tetronimos, UserPreferences } from './config';
+import { GameRules, tetronimos, UserPreferences } from './config';
 
 const down = new Vec(0, 1);
 
@@ -26,6 +26,22 @@ export interface TetronimoKind {
   rotations: Vec[][];
 }
 
+export interface GameState {
+  seed: number;
+  field: (Tile | null)[][],
+
+  falling: Tetronimo | null,
+  fall_queue: TetronimoKind[],
+
+  holding: TetronimoKind | null,
+  hold_available: boolean,
+
+  garbage_ready: number[];
+  garbage_pending: number[];
+
+  dead: boolean;
+}
+
 export interface Game {
   rules: GameRules;
   state: GameState;
@@ -38,8 +54,11 @@ export interface Game {
   shift(dir: 1 | -1): boolean;
   rotate(dir: 1 | -1): boolean;
   lock_down(): void;
+  clear_lines(indices: number[]): void;
   new_falling(): boolean;
   end_game(): void;
+
+  apply_garbage(): void;
 }
 
 /** get the absolute positions of all the pieces of a tetronimo */
@@ -79,7 +98,8 @@ export function empty_state(rules: GameRules, seed: number | null = null): GameS
     fall_queue: [],
     holding: null,
     hold_available: true,
-
+    garbage_ready: [],
+    garbage_pending: [],
     dead: false,
   };
 }
@@ -98,7 +118,8 @@ export function reactive_state(inner: GameState): GameState {
     fall_queue: shallowReactive([]),
     holding: shallowRef(null),
     hold_available: inner.hold_available,
-
+    garbage_ready: shallowReactive(inner.garbage_ready),
+    garbage_pending: shallowReactive(inner.garbage_pending),
     dead: inner.dead,
   });
 }
@@ -106,6 +127,8 @@ export function reactive_state(inner: GameState): GameState {
 export function new_game(rules: GameRules, state: GameState): Game {
   let next_id = 0;
   let holding = false;
+
+  let self: Game;
 
   function collide(t: Tetronimo) {
     for (let part of pieces(t)) {
@@ -213,20 +236,45 @@ export function new_game(rules: GameRules, state: GameState): Game {
       };
     }
 
-    let cleared = 0;
+    let indices = [];
     for (let y = 0; y < rules.field_size.y; ++y) {
       if (state.field[y].every(t => t != null)) {
-        for (let i = y; i > 0; --i) {
-          Object.assign(state.field[i], state.field[i - 1]);
-        }
-
-        Object.assign(state.field[0], empty_row(rules));
-        cleared += 1;
+        indices.push(y);
       }
     }
 
-    if (cleared > 0) {
-      console.log(`cleared ${cleared} lines`);
+    if (indices.length > 0) {
+      self.clear_lines(indices);
+    }
+
+    for (let count of state.garbage_ready) {
+      let random = alea(state.seed);
+      state.seed = random.uint32();
+
+      let column = Math.floor(random() * rules.field_size.x);
+      for (let y = 0; y < rules.field_size.y - count; ++y) {
+        Object.assign(state.field[y], state.field[y + count]);
+      }
+
+      for (let y = rules.field_size.y - count; y < rules.field_size.y; ++y) {
+        for (let x = 0; x < rules.field_size.x; ++x) {
+          if (x == column) state.field[y][x] = null;
+          else state.field[y][x] = { id: -1, kind: tetronimos.GARBAGE };
+        }
+      }
+    }
+    state.garbage_ready.length = 0;
+  }
+
+  function clear_lines(indices: number[]) {
+    for (let index of indices) {
+      for (let i = index; i > 0; --i) {
+        Object.assign(state.field[i], state.field[i - 1]);
+      }
+
+      for (let x = 0; x < rules.field_size.x; ++x) {
+        state.field[0][x] = null;
+      }
     }
   }
 
@@ -246,7 +294,7 @@ export function new_game(rules: GameRules, state: GameState): Game {
     }
 
     let kind = state.fall_queue[0];
-    let position = new Vec(5 - Math.ceil(kind.size / 2), rules.field_size.y / 2 - 2);
+    let position = new Vec(5 - Math.ceil(kind.size / 2), rules.field_size.y / 2 - 3);
     let rotation = 0;
 
     let falling = { id: next_id++, kind, position, rotation };
@@ -267,7 +315,12 @@ export function new_game(rules: GameRules, state: GameState): Game {
     state.falling = null;
   }
 
-  return {
+  function apply_garbage() {
+    let count = state.garbage_pending.shift()!;
+    state.garbage_ready.push(count);
+  }
+
+  return self = {
     rules, state,
 
     collide,
@@ -278,12 +331,15 @@ export function new_game(rules: GameRules, state: GameState): Game {
     shift,
     rotate,
     lock_down,
+    clear_lines,
     new_falling,
     end_game,
+
+    apply_garbage,
   };
 }
 
-export function play(user: UserPreferences, game: Game) {
+export function play_local(user: UserPreferences, game: Game) {
   let move_reset = 0;
   let lock_progress = 0;
   let fall_progress = 0;
@@ -350,8 +406,8 @@ export function play(user: UserPreferences, game: Game) {
 
       if (user.autoshift) {
         repeat_delay = repeating
-          ? user.autoshift.delay
-          : user.autoshift.initial_delay;
+          ? user.autoshift.delay - 1
+          : user.autoshift.initial_delay - 1;
 
         repeating = true;
       }
@@ -407,28 +463,30 @@ export function play(user: UserPreferences, game: Game) {
     repeat_shift = shift_left ? -1 : shift_right ? 1 : 0;
   }
 
-  onKeyDown(Z, () => rotate(-1));
-  onKeyDown(A, () => rotate(-1));
-  onKeyDown(X, () => rotate(1));
-  onKeyDown(S, () => rotate(1));
-  onKeyDown(UP, () => rotate(1));
+  let cleanup = [
+    onKeyDown(Z, () => rotate(-1)),
+    onKeyDown(A, () => rotate(-1)),
+    onKeyDown(X, () => rotate(1)),
+    onKeyDown(S, () => rotate(1)),
+    onKeyDown(UP, () => rotate(1)),
 
-  onKeyUp(LEFT, () => release_shift(-1));
-  onKeyDown(LEFT, () => press_shift(-1));
-  onKeyUp(RIGHT, () => release_shift(1));
-  onKeyDown(RIGHT, () => press_shift(1));
+    onKeyUp(LEFT, () => release_shift(-1)),
+    onKeyDown(LEFT, () => press_shift(-1)),
+    onKeyUp(RIGHT, () => release_shift(1)),
+    onKeyDown(RIGHT, () => press_shift(1)),
 
-  // onKeyDown(DOWN, () => try_drop());
+    onKeyDown(SPACE, () => hard_drop()),
 
-  onKeyDown(SPACE, () => hard_drop());
+    onKeyDown(C, () => hold()),
+    onKeyDown(SHIFT, () => hold()),
+  ];
 
-  onKeyDown(C, () => hold());
-  onKeyDown(SHIFT, () => hold());
+  let garbage_time = 0;
 
   let cancel = setInterval(update, 1000 / 60);
   function update() {
     if (game.state.dead) {
-      return clearInterval(cancel);
+      return;
     }
 
     if (repeat_delay > 0) {
@@ -465,7 +523,19 @@ export function play(user: UserPreferences, game: Game) {
         }
       }
     }
+
+    if (game.state.garbage_pending.length > 0) {
+      garbage_time += 1;
+      if (garbage_time == 60) {
+        game.apply_garbage();
+        garbage_time = 0;
+      }
+    }
   }
 
-  return () => clearInterval(cancel);
+  return () => {
+    clearInterval(cancel);
+    for (let fn of cleanup) fn();
+    cleanup.length = 0;
+  };
 }

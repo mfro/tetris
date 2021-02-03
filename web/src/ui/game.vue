@@ -3,9 +3,10 @@
 </template>
 
 <script>
-import { onMounted, ref, toRef, watch } from 'vue';
+import { inject, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 
-import { render as pixi_render } from '@/tetris/render/pixi';
+import { render } from '@/tetris/render/pixi';
+// import { render } from '@/tetris/render/basic';
 
 export default {
   name: 'game',
@@ -15,18 +16,36 @@ export default {
   },
 
   setup(props) {
-    let value = toRef(props, 'value');
-    let canvas = ref(null);
+    const value = toRef(props, 'value');
+    const canvas = ref(null);
     let cleanup;
 
-    onMounted(() => {
-      watch(value, (game, v) => {
-        cleanup?.();
+    const user_prefs = inject('user_prefs');
 
-        if (game) {
-          cleanup = pixi_render(canvas.value, game);
-        }
-      }, { immediate: true });
+    let prevCanvas, prevGame, prevPrefs;
+    function reset() {
+      if (canvas.value == prevCanvas && value.value == prevGame && user_prefs.value.render == prevPrefs) {
+        debugger;
+        return;
+      }
+
+      cleanup?.();
+
+      cleanup = canvas.value && value.value &&
+        render(canvas.value, user_prefs.value.render, value.value);
+
+      prevCanvas = canvas.value;
+      prevGame = value.value;
+      prevPrefs = user_prefs.value.render;
+    }
+
+    watch(value, reset);
+    watch(canvas, reset);
+    watch(user_prefs, reset);
+    onMounted(reset);
+
+    onBeforeUnmount(() => {
+      cleanup?.();
     });
 
     return { canvas };

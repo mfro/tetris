@@ -83,7 +83,6 @@ export default {
         state.bot = v;
 
         let num = 1 / parseInt(v, 10);
-        console.log(v, num);
         if ((1 / num).toString() != v || props.filter && !props.filter(num)) {
           state.error = true;
         } else {

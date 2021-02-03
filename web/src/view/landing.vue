@@ -38,7 +38,7 @@ import { computed, inject, onBeforeUnmount, onMounted, shallowReactive, shallowR
 
 import { Vec } from '@/vec';
 import { onKeyDown, R } from '@/input';
-import { play, new_game, reactive_state, empty_state } from '@/tetris';
+import { play_local, new_game, reactive_state, empty_state } from '@/tetris';
 import { wall_kicks } from '@/tetris/config';
 import { create_room } from '@/tetris/remote';
 
@@ -75,20 +75,20 @@ export default {
 
     const local_game = shallowRef(null);
 
-    let localCleanup;
+    let local_cleanup;
     const start_game = () => {
-      localCleanup?.();
+      local_cleanup?.();
 
       const state = reactive_state(empty_state(game_rules));
       local_game.value = new_game(game_rules, state);
-      localCleanup = play(user_prefs, local_game.value);
+      local_cleanup = play_local(user_prefs.value, local_game.value);
     };
 
     onMounted(() => {
       start_game();
     });
 
-    onBeforeUnmount(() => localCleanup?.());
+    onBeforeUnmount(() => local_cleanup?.());
 
     onKeyDown(R, () => start_game());
 
@@ -108,7 +108,7 @@ export default {
 
       create_room() {
         localStorage.setItem('mfro:user-name', name.value);
-        let room = create_room(name.value, user_prefs);
+        let room = create_room(name.value, user_prefs.value);
         emit('room', room);
       },
 

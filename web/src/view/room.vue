@@ -3,7 +3,7 @@
     <edit-config kind="game" v-model="game_rules" @close="editing = false" />
   </v-dialog>
 
-  <v-flex column grow align-center>
+  <v-flex column grow align-center class="mt-6">
     <v-card v-if="!room.local">
       <template v-slot:title>
         <v-flex grow align-start>

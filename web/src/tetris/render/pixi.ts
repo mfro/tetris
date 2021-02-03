@@ -4,9 +4,12 @@ import { watch, watchEffect } from 'vue';
 import { Vec } from '@/vec';
 
 import { TetronimoKind, Game, Tetronimo, pieces } from '..';
-import { tetronimos } from '../config';
+import { GameRules, tetronimos } from '../config';
 
-import { draw_styles, image_offset, render_tilesheets, TileStyle } from './basic';
+import { make_renderer, RenderConfig, Renderer, render_tilesheets, TileStyle } from './basic';
+import { assert } from '@mfro/ts-common/assert';
+
+const padding = new Vec(3, 3);
 
 const adj8 = [
   new Vec(-1, -1),
@@ -19,16 +22,31 @@ const adj8 = [
   new Vec(-1, 0),
 ];
 
-export function render(canvas: HTMLCanvasElement, game: Game) {
-  const unit_size = 32;
-  const pixel = 1 / unit_size;
+function prerender_background(renderer: Renderer, rules: GameRules) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  assert(context != null, 'context');
+
+  canvas.width = renderer.tile_size * (rules.field_size.x + 12 + padding.x * 2);
+  canvas.height = renderer.tile_size * (rules.field_size.y / 2 + padding.y * 2);
+
+  renderer.render_background(context, rules, Vec.add(padding, new Vec(6, 0)));
+
+  return canvas.toDataURL();
+}
+
+export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
+  const renderer = make_renderer(config);
+
+  const unit_size = renderer.tile_size;
 
   const textures = new Map<TetronimoKind, BaseTexture>();
 
-  canvas.width = (game.rules.field_size.x + 12) * unit_size;
-  canvas.height = (game.rules.field_size.y / 2) * unit_size;
+  canvas.width = (game.rules.field_size.x + 12 + padding.x * 2) * unit_size;
+  canvas.height = (game.rules.field_size.y / 2 + padding.y * 2) * unit_size;
   canvas.style.width = `${canvas.width}px`;
   canvas.style.height = `${canvas.height}px`;
+  canvas.style.marginBottom = `${-padding.y * unit_size}px`;
 
   function tile_at(pos: Vec) {
     if (pos.x < 0 || pos.x >= game.rules.field_size.x
@@ -38,6 +56,7 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     return game.state.field[pos.y][pos.x];
   }
 
+  let image_offset: any;
   function draw_tile(position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) {
     let base = textures.get(kind)!;
     let index = image_offset(around, style, unit_size);
@@ -63,6 +82,12 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
       this.sprites = [];
     }
 
+    draw_tile(position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) {
+      let sprite = draw_tile(position, kind, around, style);
+      this.sprites.push(sprite);
+      this.container.addChild(sprite);
+    }
+
     draw_tetronimo(t: Tetronimo, style: TileStyle) {
       let offsets = t.kind.rotations[t.rotation];
 
@@ -74,47 +99,13 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
             .every(v => !Vec.eq(v, Vec.add(offset, adj)))
         );
 
-        let sprite = draw_tile(position, t.kind, around, style);
-        this.sprites.push(sprite);
-        this.container.addChild(sprite);
+        this.draw_tile(position, t.kind, around, style);
       }
     }
   }
 
   function draw_ui(src: () => (TetronimoKind | null)[]) {
-    let size = src().length;
-
     let field = new Container();
-    // field.scale = new Point(1, unit_size);
-
-    let g = new Graphics();
-    field.addChild(g);
-    g.scale = new Point(1 / unit_size, 1 / unit_size);
-
-    let topleft = Vec.scale(new Vec(0, 0), unit_size);
-    let botrite = Vec.scale(new Vec(4, 1 + 3 * size), unit_size);
-
-    const thickness = 2;
-    const length = 8;
-
-    g.lineStyle(thickness, 0x808080, 1, 0);
-
-    g.moveTo(topleft.x, topleft.y + length);
-    g.lineTo(topleft.x, topleft.y);
-    g.lineTo(topleft.x + length, topleft.y);
-
-    g.moveTo(botrite.x - length, topleft.y);
-    g.lineTo(botrite.x, topleft.y);
-    g.lineTo(botrite.x, topleft.y + length);
-
-    g.moveTo(botrite.x, botrite.y - length);
-    g.lineTo(botrite.x, botrite.y);
-    g.lineTo(botrite.x - length, botrite.y);
-
-    g.moveTo(topleft.x + length, botrite.y);
-    g.lineTo(topleft.x, botrite.y);
-    g.lineTo(topleft.x, botrite.y - length);
-
     let pool = new SpritePool(field);
     watch(() => [src(), game.state.hold_available] as const, ([list, hold_available]) => {
       pool.clear();
@@ -144,41 +135,22 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
     return field;
   }
 
-  function draw_background(g: Graphics) {
-    g.beginFill(0xFFFFFF);
-    g.drawRect(0, 0, game.rules.field_size.x, game.rules.field_size.y);
-    g.endFill();
-
-    g.lineStyle(pixel, 0xf4f4f4);
-    for (let x = 0; x < game.rules.field_size.x; ++x) {
-      g.moveTo(x + 0.5 * pixel, 0);
-      g.lineTo(x + 0.5 * pixel, game.rules.field_size.y);
-      g.moveTo((x + 1) - 0.5 * pixel, 0);
-      g.lineTo((x + 1) - 0.5 * pixel, game.rules.field_size.y);
-    }
-
-    for (let y = 0; y < game.rules.field_size.y; ++y) {
-      g.moveTo(0, y + 0.5 * pixel);
-      g.lineTo(game.rules.field_size.x, y + 0.5 * pixel);
-      g.moveTo(0, (y + 1) - 0.5 * pixel);
-      g.lineTo(game.rules.field_size.x, (y + 1) - 0.5 * pixel);
-    }
-  }
-
   const app = new Application({
     view: canvas,
-    width: unit_size * (game.rules.field_size.x + 12),
-    height: unit_size * (game.rules.field_size.y / 2),
+    width: unit_size * (game.rules.field_size.x + 12 + padding.x * 2),
+    height: unit_size * (game.rules.field_size.y / 2 + padding.y * 2),
     transparent: true,
   });
 
   // let s = performance.now();
-  render_tilesheets(unit_size, draw_styles.v2, tilesheets => {
+  render_tilesheets(config).then(([lookup, tilesheets]) => {
+    image_offset = lookup;
     // let e = performance.now();
     // console.log(e - s);
     tilesheets.forEach((sheet, i) => {
       app.loader.add(i.toString(), sheet);
     });
+    app.loader.add('background', prerender_background(renderer, game.rules));
     app.loader.load();
   });
 
@@ -187,26 +159,33 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
       let base = app.loader.resources[i]!.texture.baseTexture;
       textures.set(tetronimos.all[i], base);
     }
+    let base = app.loader.resources[tetronimos.all.length]!.texture.baseTexture;
+    textures.set(tetronimos.GARBAGE, base);
 
     const root = new Container();
     root.scale = new Point(unit_size, unit_size);
 
     const field = new Container();
-    field.position = new Point(6, (-game.rules.field_size.y / 2));
+    field.position = new Point(6 + padding.x, (-game.rules.field_size.y / 2) + padding.y);
 
-    const background = new Graphics();
-    draw_background(background);
+    const background = new Sprite(app.loader.resources['background'].texture);
+    background.width = game.rules.field_size.x + 12 + padding.x * 2;
+    background.height = game.rules.field_size.y / 2 + padding.y * 2;
 
     const holding = draw_ui(() => [game.state.holding]);
-    holding.position = new Point(1, 1);
+    holding.position = new Point(1 + padding.x, 1 + padding.y);
 
     const queue = draw_ui(() => game.state.fall_queue.slice(0, 5));
-    queue.position = new Point((7 + game.rules.field_size.x), 1);
+    queue.position = new Point((7 + padding.x + game.rules.field_size.x), 1 + padding.y);
 
-    field.addChild(background);
+    const garbage = new Container();
+    garbage.position = new Point(4 + padding.x, padding.y);
+
+    root.addChild(background);
     root.addChild(field);
     root.addChild(queue);
     root.addChild(holding);
+    root.addChild(garbage);
     app.stage.addChild(root);
 
     for (let x = 0; x < game.rules.field_size.x; ++x) {
@@ -239,6 +218,28 @@ export function render(canvas: HTMLCanvasElement, game: Game) {
         let ghost = { ...game.state.falling, position };
         falling.draw_tetronimo(ghost, TileStyle.ghost);
         falling.draw_tetronimo(game.state.falling, TileStyle.normal);
+      }
+    });
+
+    let garbage_pool = new SpritePool(garbage);
+    watchEffect(() => {
+      garbage_pool.clear();
+      let y = game.rules.field_size.y / 2;
+
+      for (let count of game.state.garbage_ready) {
+        y -= count;
+        for (let i = 0; i < count; ++i) {
+          let position = new Vec(0, y + i);
+          garbage_pool.draw_tile(position, tetronimos.GARBAGE, [true, i == 0, true, true, true, i + 1 == count, true, true], TileStyle.normal);
+        }
+      }
+
+      for (let count of game.state.garbage_pending) {
+        y -= count;
+        for (let i = 0; i < count; ++i) {
+          let position = new Vec(0, y + i);
+          garbage_pool.draw_tile(position, tetronimos.GARBAGE, [true, i == 0, true, true, true, i + 1 == count, true, true], TileStyle.ghost);
+        }
       }
     });
   });

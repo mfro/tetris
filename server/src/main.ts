@@ -53,7 +53,7 @@ server.on('connection', (socket, request) => {
         [code, room] = new_room();
     } else {
         room = rooms.get(code)!;
-        if (room == null || room.clients.length == 2) {
+        if (room == null) {
             [code, room] = new_room();
         }
     }
@@ -101,6 +101,6 @@ server.on('connection', (socket, request) => {
     });
 
     on(receive(socket, ClientUpdate), (update) => {
-        broadcast(BroadcastUpdate, [client.index, update] as [number, GameUpdate], client);
+        broadcast(BroadcastUpdate, [client.index, update] as [number, GameUpdate]);
     });
 });

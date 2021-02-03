@@ -1,5 +1,5 @@
 <template>
-  <v-app align-center class="pa-6">
+  <v-app align-center class="pb-6 root">
     <v-dialog :model-value="editing_user">
       <edit-config
         kind="user"
@@ -56,10 +56,16 @@ export default {
     const raw = localStorage.getItem('mfro:tetris-user-preferences');
 
     const editing_user = shallowRef(false);
-    const user_prefs = raw ? JSON.parse(raw) : {
-      autoshift: { delay: 2, initial_delay: 10 },
-      soft_drop: 10,
-    };
+    const user_prefs = shallowRef(raw ? JSON.parse(raw) : {});
+
+    if (!Reflect.has(user_prefs.value, 'autoshift'))
+      user_prefs.value.autoshift = { delay: 2, initial_delay: 10 };
+
+    if (!Reflect.has(user_prefs.value, 'soft_drop'))
+      user_prefs.value.soft_drop = 10;
+
+    if (!Reflect.has(user_prefs.value, 'render'))
+      user_prefs.value.render = { size: 32, smooth: false, style: 'v2', border: 3, ghost_opacity: 0.4 };
 
     provide('user_prefs', user_prefs);
 
@@ -69,9 +75,9 @@ export default {
       editing_user,
 
       user_prefs: computed({
-        get: () => user_prefs,
+        get: () => user_prefs.value,
         set: (v) => {
-          Object.assign(user_prefs, v)
+          user_prefs.value = v;
           localStorage.setItem('mfro:tetris-user-preferences', JSON.stringify(v));
         },
       }),
@@ -92,5 +98,9 @@ export default {
   position: absolute;
   left: 0;
   bottom: 0;
+}
+
+.root {
+  // background-color: #020202 !important;
 }
 </style>

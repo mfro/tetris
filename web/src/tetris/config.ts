@@ -25,6 +25,7 @@ export namespace tetronimos {
   export const L = define(3, [[2, 0], [0, 1], [1, 1], [2, 1]]);
   export const S = define(3, [[1, 0], [2, 0], [0, 1], [1, 1]]);
   export const Z = define(3, [[0, 0], [1, 0], [1, 1], [2, 1]]);
+  export const GARBAGE = define(0, []);
 
   export const all = [I, O, T, J, L, S, Z];
 }
@@ -158,19 +159,6 @@ export interface UserPreferences {
   autoshift: null | { delay: number, initial_delay: number };
   // multiplier for fall_delay while soft drop is held
   soft_drop: number;
-}
-
-export interface GameState {
-  seed: number;
-  field: (Tile | null)[][],
-
-  falling: Tetronimo | null,
-  fall_queue: TetronimoKind[],
-
-  holding: TetronimoKind | null,
-  hold_available: boolean,
-
-  dead: boolean;
 }
 
 export type Option =

@@ -1,5 +1,5 @@
 <template>
-  <v-flex column grow align-center>
+  <v-flex column grow align-center class="mt-6">
     <v-card class="mb-4">
       <v-text-field label="Code" v-model="code" />
 
@@ -45,7 +45,7 @@ export default {
 
       submit() {
         localStorage.setItem('mfro:user-name', name.value);
-        let room = create_room(name.value, user_prefs, code.value);
+        let room = create_room(name.value, user_prefs.value, code.value);
         emit('room', room);
       },
     };

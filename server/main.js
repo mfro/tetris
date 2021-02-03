@@ -3689,7 +3689,7 @@ server.on('connection', (socket, request) => {
     }
     else {
         room = rooms.get(code);
-        if (room == null || room.clients.length == 2) {
+        if (room == null) {
             [code, room] = new_room();
         }
     }
@@ -3730,6 +3730,6 @@ server.on('connection', (socket, request) => {
         broadcast(StartGame, Object.assign(Object.assign({}, config), { players }));
     });
     on(receive(socket, ClientUpdate), (update) => {
-        broadcast(BroadcastUpdate, [client.index, update], client);
+        broadcast(BroadcastUpdate, [client.index, update]);
     });
 });

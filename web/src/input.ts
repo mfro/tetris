@@ -1,3 +1,5 @@
+import { emit, Event, off, on } from "@mfro/ts-common/events";
+
 export const
   SPACE = 32,
   ENTER = 13,
@@ -13,49 +15,45 @@ export const
   C = 67,
   R = 82;
 
-let down = new Set<number>();
+let holding = new Set<number>();
 
-let up_listeners = new Map<number, (() => void)[]>();
-let down_listeners = new Map<number, (() => void)[]>();
+let press = new Map<number, Event>();
+let release = new Map<number, Event>();
 
 window.addEventListener('keydown', e => {
-  if (down.has(e.keyCode))
+  if (holding.has(e.keyCode))
     return;
 
   // console.log(e.keyCode);
-  down.add(e.keyCode);
+  holding.add(e.keyCode);
 
-  let list = down_listeners.get(e.keyCode);
-  if (!list) return;
-
-  for (let item of list) {
-    item();
-  }
+  let event = press.get(e.keyCode);
+  if (event) emit(event);
 });
 
 window.addEventListener('keyup', e => {
-  down.delete(e.keyCode);
+  holding.delete(e.keyCode);
 
-  let list = up_listeners.get(e.keyCode);
-  if (!list) return;
-
-  for (let item of list) {
-    item();
-  }
+  let event = release.get(e.keyCode);
+  if (event) emit(event);
 });
 
 export function isKeyDown(k: number) {
-  return down.has(k);
+  return holding.has(k);
 }
 
 export function onKeyDown(key: number, handler: () => void) {
-  let list = down_listeners.get(key);
-  if (!list) down_listeners.set(key, list = []);
-  list.push(handler);
+  let event = press.get(key);
+  if (!event) press.set(key, event = Event());
+
+  on(event, handler);
+  return () => off(event!, handler);
 }
 
 export function onKeyUp(key: number, handler: () => void) {
-  let list = up_listeners.get(key);
-  if (!list) up_listeners.set(key, list = []);
-  list.push(handler);
+  let event = release.get(key);
+  if (!event) release.set(key, event = Event());
+
+  on(event, handler);
+  return () => off(event!, handler);
 }

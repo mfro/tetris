@@ -5,7 +5,7 @@ import { on } from '@mfro/ts-common/events';
 import { receive, send } from '@mfro/ts-common/sockets/client';
 import { BroadcastUpdate, ClientUpdate, RoomCode, RoomState, StartGame, StartGameRequest } from 'common';
 
-import { empty_state, Game, new_game, play, reactive_state } from '.';
+import { empty_state, Game, new_game, play_local, reactive_state } from '.';
 import { GameRules, UserPreferences } from './config';
 
 interface Member {
@@ -24,7 +24,9 @@ interface RemoteState {
   start_game(rules: GameRules): void;
 }
 
-function observe<Args extends any[], R, O extends { [k in K]: (...args: Args) => R }, K extends keyof O>(target: O, key: K, hook: (...args: Args) => R) {
+type Hook<T> = T extends (...args: infer T) => infer R ? (...args: T) => void : never;
+
+function observe<Args extends any[], R, O extends { [k in K]: (...args: Args) => R }, K extends keyof O>(target: O, key: K, hook: Hook<O[K]>) {
   let original = target[key];
   target[key] = ((...args) => {
     let result = original(...args);
@@ -61,9 +63,11 @@ export function create_room(name: string, user: UserPreferences, code: string | 
 
   function check_exit() {
     let playing = state.members.filter((m, i) => m.game && !m.game.state.dead);
-    if (playing.length == 1)
+    if (playing.length == 1) {
       playing[0].winner = true;
-    else if (playing.length == 0) {
+    }
+
+    if (playing.length == 0 || (playing.length == 1 && state.members.length > 1)) {
       state.local = null;
       for (let member of state.members) {
         member.game = null;
@@ -80,6 +84,19 @@ export function create_room(name: string, user: UserPreferences, code: string | 
     let s = reactive_state(empty_state(rules, config.seed))
     state.local = new_game(rules, s);
 
+    observe(state.local, 'hold', () => send(socket, ClientUpdate, { type: 'hold' }));
+    observe(state.local, 'drop', (distance) => send(socket, ClientUpdate, { type: 'drop', distance }));
+    observe(state.local, 'shift', (dir) => send(socket, ClientUpdate, { type: 'shift', dir }));
+    observe(state.local, 'rotate', (dir) => send(socket, ClientUpdate, { type: 'rotate', dir }));
+    observe(state.local, 'lock_down', () => send(socket, ClientUpdate, { type: 'lock_down' }));
+    observe(state.local, 'clear_lines', (i) => send(socket, ClientUpdate, { type: 'send_lines', count: garbage(i.length) }));
+    observe(state.local, 'apply_garbage', () => send(socket, ClientUpdate, { type: 'apply_garbage' }));
+    observe(state.local, 'new_falling', () => send(socket, ClientUpdate, { type: 'new_falling' }));
+    observe(state.local, 'end_game', () => {
+      send(socket, ClientUpdate, { type: 'end_game' });
+      check_exit();
+    });
+
     for (let i = 0; i < config.players; ++i) {
       state.members[i].winner = false;
 
@@ -91,30 +108,27 @@ export function create_room(name: string, user: UserPreferences, code: string | 
       }
     }
 
-    observe(state.local, 'hold', () => send(socket, ClientUpdate, { type: 'hold' }));
-    observe(state.local, 'drop', (distance) => send(socket, ClientUpdate, { type: 'drop', distance }));
-    observe(state.local, 'shift', (dir) => send(socket, ClientUpdate, { type: 'shift', dir }));
-    observe(state.local, 'rotate', (dir) => send(socket, ClientUpdate, { type: 'rotate', dir }));
-    observe(state.local, 'lock_down', () => send(socket, ClientUpdate, { type: 'lock_down' }));
-    observe(state.local, 'new_falling', () => send(socket, ClientUpdate, { type: 'new_falling' }));
-    observe(state.local, 'end_game', () => {
-      send(socket, ClientUpdate, { type: 'end_game' });
-      check_exit();
-    });
-
-    cleanup = play(user, state.local);
+    cleanup = play_local(user, state.local);
   });
 
   on(receive(socket, BroadcastUpdate), ([index, update]) => {
     let target = state.members[index].game!;
+    if (target == state.local && update.type != 'send_lines') return;
+
     switch (update.type) {
       case 'hold': target.hold(); break;
       case 'drop': target.drop(update.distance); break;
       case 'shift': target.shift(update.dir); break;
       case 'rotate': target.rotate(update.dir); break;
       case 'lock_down': target.lock_down(); break;
+      case 'apply_garbage': target.apply_garbage(); break;
       case 'new_falling': target.new_falling(); break;
       case 'end_game': target.end_game(); check_exit(); break;
+
+      case 'send_lines':
+        let next = state.members[(index + 1) % state.members.length].game!;
+        next.state.garbage_pending.push(update.count);
+        break;
     }
   });
 
@@ -129,6 +143,8 @@ export function create_room(name: string, user: UserPreferences, code: string | 
   });
 
   on(receive(socket, RoomState), ({ index, names }) => {
+    cleanup?.();
+
     state.members = names.map(name => ({ name, game: null, winner: false }));
     state.index = index;
 
@@ -142,4 +158,11 @@ export function create_room(name: string, user: UserPreferences, code: string | 
   });
 
   return state;
+}
+
+function garbage(count: number) {
+  if (count == 4)
+    return 4;
+
+  return count - 1;
 }
