@@ -6,7 +6,7 @@
     :options="styleOptions"
   />
 
-  <template v-if="style == 'v1'">
+  <template v-if="style == 'toon'">
     <config-number
       name="Tile size"
       description="Size in pixels of each square on the field"
@@ -28,7 +28,7 @@
     />
   </template>
 
-  <template v-if="style == 'v2'">
+  <template v-if="style == 'pixel'">
     <config-number
       name="Tile size"
       description="Size in pixels of each square on the field"
@@ -75,8 +75,8 @@ import configNumber from './config-number';
 import configSelect from './config-select';
 
 const styleOptions = [
-  ['toon', 'v1'],
-  ['pixel', 'v2'],
+  ['toon', 'toon'],
+  ['pixel', 'pixel'],
   ['tetr.io', 'tetrio'],
 ];
 

@@ -1,4 +1,4 @@
-import { Application, BaseTexture, Container, Graphics, Point, Rectangle, Sprite, Texture } from 'pixi.js';
+import { Application, BaseTexture, Container, Graphics, Point, Rectangle, SCALE_MODES, settings as pixi_settings, Sprite, Texture } from 'pixi.js';
 import { watch, watchEffect } from 'vue';
 
 import { Vec } from '@/vec';
@@ -8,6 +8,7 @@ import { GameRules, tetronimos } from '../config';
 
 import { make_renderer, RenderConfig, Renderer, render_tilesheets, TileStyle } from './basic';
 import { assert } from '@mfro/ts-common/assert';
+import { SSL_OP_TLS_BLOCK_PADDING_BUG } from 'constants';
 
 const padding = new Vec(3, 3);
 
@@ -35,8 +36,8 @@ function prerender_background(renderer: Renderer, rules: GameRules) {
   return canvas.toDataURL();
 }
 
-export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
-  const renderer = make_renderer(config);
+export async function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
+  const renderer = await make_renderer(config);
 
   const unit_size = renderer.tile_size;
 
@@ -48,6 +49,8 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
   canvas.style.height = `${canvas.height}px`;
   canvas.style.marginBottom = `${-padding.y * unit_size}px`;
 
+  pixi_settings.SCALE_MODE = SCALE_MODES.NEAREST;
+
   function tile_at(pos: Vec) {
     if (pos.x < 0 || pos.x >= game.rules.field_size.x
       || pos.y < 0 || pos.y >= game.rules.field_size.y)
@@ -56,14 +59,13 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
     return game.state.field[pos.y][pos.x];
   }
 
-  let image_offset: any;
   function draw_tile(position: Vec, kind: TetronimoKind, around: boolean[], style: TileStyle) {
     let base = textures.get(kind)!;
-    let index = image_offset(around, style, unit_size);
+    let index = lookup(around, style);
 
     let sprite = new Sprite();
-    sprite.scale = new Point(1 / unit_size, 1 / unit_size);
-    sprite.texture = new Texture(base, new Rectangle(index.x, index.y, unit_size, unit_size));
+    sprite.scale = new Point(1 / renderer.tile_size, 1 / renderer.tile_size);
+    sprite.texture = new Texture(base, new Rectangle(index.x, index.y, renderer.tile_size, renderer.tile_size));
     sprite.position = new Point(position.x, position.y);
 
     return sprite;
@@ -104,7 +106,7 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
     }
   }
 
-  function draw_ui(src: () => (TetronimoKind | null)[]) {
+  function draw_ui(src: () => (TetronimoKind | null)[], isHold: boolean) {
     let field = new Container();
     let pool = new SpritePool(field);
     watch(() => [src(), game.state.hold_available] as const, ([list, hold_available]) => {
@@ -125,7 +127,7 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
         let offset = new Vec(-(minX + maxX) / 2, -(minY + maxY) / 2);
         let position = Vec.add(center, offset);
 
-        let style = list.length == 1 && !hold_available ? TileStyle.disabled : TileStyle.normal;
+        let style = isHold && !hold_available ? TileStyle.disabled : TileStyle.normal;
 
         pool.draw_tetronimo({ id: -1, kind, position, rotation: 0 }, style);
         center = Vec.add(center, new Vec(0, 3));
@@ -142,17 +144,12 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
     transparent: true,
   });
 
-  // let s = performance.now();
-  render_tilesheets(config).then(([lookup, tilesheets]) => {
-    image_offset = lookup;
-    // let e = performance.now();
-    // console.log(e - s);
-    tilesheets.forEach((sheet, i) => {
-      app.loader.add(i.toString(), sheet);
-    });
-    app.loader.add('background', prerender_background(renderer, game.rules));
-    app.loader.load();
+  let [lookup, tilesheets] = await render_tilesheets(config);
+  tilesheets.forEach((sheet, i) => {
+    app.loader.add(i.toString(), sheet);
   });
+  app.loader.add('background', prerender_background(renderer, game.rules));
+  app.loader.load();
 
   app.loader.onLoad.once(() => {
     for (let i = 0; i < 7; ++i) {
@@ -172,10 +169,10 @@ export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Ga
     background.width = game.rules.field_size.x + 12 + padding.x * 2;
     background.height = game.rules.field_size.y / 2 + padding.y * 2;
 
-    const holding = draw_ui(() => [game.state.holding]);
+    const holding = draw_ui(() => [game.state.holding], true);
     holding.position = new Point(1 + padding.x, 1 + padding.y);
 
-    const queue = draw_ui(() => game.state.fall_queue.slice(0, 5));
+    const queue = draw_ui(() => game.state.fall_queue.slice(0, 5), false);
     queue.position = new Point((7 + padding.x + game.rules.field_size.x), 1 + padding.y);
 
     const garbage = new Container();

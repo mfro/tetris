@@ -13,11 +13,11 @@ export interface Renderer {
 }
 
 export type RenderConfig =
-  | { style: 'v1', size: number, smooth: boolean, border: number }
-  | { style: 'v2', size: number, smooth: boolean, border: number, ghost_opacity: number }
+  | { style: 'toon', size: number, smooth: boolean, border: number }
+  | { style: 'pixel', size: number, smooth: boolean, border: number, ghost_opacity: number }
   | { style: 'tetrio', ghost_color: boolean };
 
-export function make_renderer(config: RenderConfig): Renderer {
+export async function make_renderer(config: RenderConfig): Promise<Renderer> {
   function default_background(context: CanvasRenderingContext2D, rules: GameRules, origin: Vec, scale: number) {
     function draw_ui(size: number, center: Vec) {
       let topleft = Vec.add(center, new Vec(-2, -2));
@@ -90,7 +90,7 @@ export function make_renderer(config: RenderConfig): Renderer {
     context.restore();
   }
 
-  if (config.style == 'v1') return {
+  if (config.style == 'toon') return {
     tile_size: config.size,
     smoothing: config.smooth,
     render_tile(context, kind, around, style) {
@@ -181,7 +181,7 @@ export function make_renderer(config: RenderConfig): Renderer {
     render_background: (c, r, o) => default_background(c, r, o, config.size),
   };
 
-  if (config.style == 'v2') return {
+  if (config.style == 'pixel') return {
     tile_size: config.size,
     smoothing: config.smooth,
     render_tile(context, kind, around, style) {
@@ -213,76 +213,46 @@ export function make_renderer(config: RenderConfig): Renderer {
         context.filter = 'grayscale(100%)';
       }
 
-      const left_inner = border;
-      const left_outer = border / 2;
-      const right_inner = 1 - border;
-      const right_outer = 1 - border / 2;
-
       context.fillStyle = color[0];
-      context.fillRect(left_inner, left_inner, 1 - 2 * border, 1 - 2 * border);
+      context.fillRect(border, border, 1 - 2 * border, 1 - 2 * border);
 
-      context.lineCap = 'butt';
-      context.lineWidth = border;
+      if (border > 0) {
+        context.lineCap = 'butt';
+        context.lineJoin = 'miter';
+        context.lineWidth = border;
 
-      context.beginPath();
-      context.moveTo(left_outer, right_inner);
-      context.lineTo(left_outer, left_inner);
-      context.strokeStyle = around[7] ? color[1] : color[0];
-      context.stroke();
+        context.fillStyle = around[7] ? color[1] : color[0];
+        context.fillRect(0, border, border, 1 - 2 * border);
 
-      context.beginPath();
-      context.moveTo(left_inner, left_outer);
-      context.lineTo(right_inner, left_outer);
-      context.strokeStyle = around[1] ? color[1] : color[0];
-      context.stroke();
+        context.fillStyle = around[1] ? color[1] : color[0];
+        context.fillRect(border, 0, 1 - 2 * border, border);
 
-      context.beginPath();
-      context.moveTo(0, left_outer);
-      context.lineTo(left_outer, left_outer);
-      context.lineTo(left_outer, 0);
-      context.strokeStyle = around[0] || around[7] || around[1] ? color[1] : color[0];
-      context.stroke();
+        context.fillStyle = around[0] || around[7] || around[1] ? color[1] : color[0];
+        context.fillRect(0, 0, border, border);
 
-      context.beginPath();
-      context.moveTo(right_outer, left_inner);
-      context.lineTo(right_outer, right_inner);
-      context.strokeStyle = around[3] ? color[2] : color[0];
-      context.stroke();
+        context.fillStyle = around[3] ? color[2] : color[0];
+        context.fillRect(1 - border, border, border, 1 - 2 * border);
 
-      context.beginPath();
-      context.moveTo(right_inner, right_outer);
-      context.lineTo(left_inner, right_outer);
-      context.strokeStyle = around[5] ? color[2] : color[0];
-      context.stroke();
+        context.fillStyle = around[5] ? color[2] : color[0];
+        context.fillRect(border, 1 - border, 1 - 2 * border, border);
 
-      context.beginPath();
-      context.moveTo(1, right_outer);
-      context.lineTo(right_outer, right_outer);
-      context.lineTo(right_outer, 1);
-      context.strokeStyle = around[4] || around[3] || around[5] ? color[2] : color[0];
-      context.stroke();
+        context.fillStyle = around[4] || around[3] || around[5] ? color[2] : color[0];
+        context.fillRect(1 - border, 1 - border, border, border);
 
-      context.beginPath();
-      context.moveTo(right_outer, 0);
-      context.lineTo(right_outer, left_outer);
-      context.lineTo(1, left_outer);
-      context.strokeStyle = around[2] && around[1] && around[3] ? color[0]
-        : around[1] ? color[1]
-          : around[3] ? color[2]
-            : around[2] ? color[2]
-              : color[0];
-      context.stroke();
+        context.fillStyle = around[2] && around[1] && around[3] ? color[0]
+          : around[1] ? color[1]
+            : around[3] ? color[2]
+              : around[2] ? color[2]
+                : color[0];
+        context.fillRect(0, 1 - border, border, border);
 
-      context.beginPath();
-      context.moveTo(left_outer, 1);
-      context.lineTo(left_outer, right_outer);
-      context.lineTo(0, right_outer);
-      context.strokeStyle = around[6] && around[7] && around[5] ? color[0]
-        : around[7] ? color[1]
-          : around[5] ? color[2]
-            : around[6] ? color[1]
-              : color[0];
-      context.stroke();
+        context.strokeStyle = around[6] && around[7] && around[5] ? color[0]
+          : around[7] ? color[1]
+            : around[5] ? color[2]
+              : around[6] ? color[1]
+                : color[0];
+        context.fillRect(1 - border, 0, border, border);
+      }
 
       context.filter = 'none';
       context.restore();
@@ -306,6 +276,11 @@ export function make_renderer(config: RenderConfig): Renderer {
       tetronimos.J,
       tetronimos.T,
     ];
+
+    let p1 = new Promise(resolve => sprites.onload = resolve);
+    let p2 = new Promise(resolve => background.onload = resolve);
+    await p1;
+    await p2;
 
     return {
       tile_size: 30,
@@ -420,7 +395,7 @@ interface ImageCache {
 }
 
 export async function render_tilesheets(config: RenderConfig) {
-  const renderer = make_renderer(config);
+  const renderer = await make_renderer(config);
   const styles = [TileStyle.normal, TileStyle.ghost, TileStyle.disabled];
 
   const canvas = document.createElement('canvas');
@@ -514,35 +489,29 @@ export async function render_tilesheets(config: RenderConfig) {
   return [lookup, images] as const;
 }
 
-function prerender(config: RenderConfig): Renderer {
-  let base = make_renderer(config);
-  let impl: typeof base.render_tile;
+async function prerender(config: RenderConfig): Promise<Renderer> {
+  let base = await make_renderer(config);
+  let [lookup, data] = await render_tilesheets(config);
 
-  render_tilesheets(config).then(([lookup, data]) => {
-    let images = data.map(url => {
-      let image = new Image();
-      image.src = url;
-      return image;
-    });
-
-    impl = (context, kind, around, style) => {
-      let sheet = images[kind == tetronimos.GARBAGE ? tetronimos.all.length : tetronimos.all.indexOf(kind)];
-      let offset = lookup(around, style);
-
-      context.drawImage(sheet, offset.x, offset.y, base.tile_size, base.tile_size, 0, 0, 1, 1)
-    };
+  let images = data.map(url => {
+    let image = new Image();
+    image.src = url;
+    return image;
   });
 
   return {
     ...base,
-    render_tile(...args) {
-      return impl && impl(...args);
+    render_tile(context, kind, around, style) {
+      let sheet = images[kind == tetronimos.GARBAGE ? tetronimos.all.length : tetronimos.all.indexOf(kind)];
+      let offset = lookup(around, style);
+
+      context.drawImage(sheet, offset.x, offset.y, base.tile_size, base.tile_size, 0, 0, 1, 1)
     },
   };
 }
 
-export function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
-  const renderer = prerender(config);
+export async function render(canvas: HTMLCanvasElement, config: RenderConfig, game: Game) {
+  const renderer = await prerender(config);
 
   const unit_size = renderer.tile_size;
 

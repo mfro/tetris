@@ -25,18 +25,19 @@ export default {
     let prevCanvas, prevGame, prevPrefs;
     function reset() {
       if (canvas.value == prevCanvas && value.value == prevGame && user_prefs.value.render == prevPrefs) {
-        debugger;
         return;
       }
 
       cleanup?.();
-
-      cleanup = canvas.value && value.value &&
-        render(canvas.value, user_prefs.value.render, value.value);
+      cleanup = null;
 
       prevCanvas = canvas.value;
       prevGame = value.value;
       prevPrefs = user_prefs.value.render;
+
+      if (canvas.value && value.value) {
+        render(canvas.value, user_prefs.value.render, value.value).then(c => cleanup = c);
+      }
     }
 
     watch(value, reset);
