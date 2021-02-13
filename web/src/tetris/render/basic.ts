@@ -244,14 +244,14 @@ export async function make_renderer(config: RenderConfig): Promise<Renderer> {
             : around[3] ? color[2]
               : around[2] ? color[2]
                 : color[0];
-        context.fillRect(0, 1 - border, border, border);
+        context.fillRect(1 - border, 0, border, border);
 
-        context.strokeStyle = around[6] && around[7] && around[5] ? color[0]
+        context.fillStyle = around[6] && around[7] && around[5] ? color[0]
           : around[7] ? color[1]
             : around[5] ? color[2]
               : around[6] ? color[1]
                 : color[0];
-        context.fillRect(1 - border, 0, border, border);
+        context.fillRect(0, 1 - border, border, border);
       }
 
       context.filter = 'none';
