@@ -1,6 +1,5 @@
 import { Vec } from '@/vec';
 import { assert } from '@mfro/ts-common/assert';
-import { isContext } from 'vm';
 
 import { TetronimoKind, Tetronimo, pieces, Game } from '..';
 import { GameRules, tetronimos } from '../config';

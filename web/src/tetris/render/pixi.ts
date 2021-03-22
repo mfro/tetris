@@ -8,7 +8,6 @@ import { GameRules, tetronimos } from '../config';
 
 import { make_renderer, RenderConfig, Renderer, render_tilesheets, TileStyle } from './basic';
 import { assert } from '@mfro/ts-common/assert';
-import { SSL_OP_TLS_BLOCK_PADDING_BUG } from 'constants';
 
 const padding = new Vec(3, 3);
 
