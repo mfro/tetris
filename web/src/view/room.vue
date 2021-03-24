@@ -18,7 +18,9 @@
 
       <v-flex column class="pt-4">
         <v-flex v-for="member in room.members" :key="member" class="px-4">
-          <v-icon class="mr-3" v-if="member.winner" style="color: #ffc107">emoji_events</v-icon>
+          <v-icon class="mr-3" v-if="member.winner" style="color: #ffc107"
+            >emoji_events</v-icon
+          >
           <v-text class="my-3">{{ member.name }}</v-text>
         </v-flex>
       </v-flex>
@@ -37,8 +39,14 @@
       </template>
     </v-card>
 
-    <v-flex v-else>
-      <game :value="room.local" />
+    <v-flex column v-else>
+      <v-flex>
+        <game :value="before.game" v-if="before" />
+
+        <game :value="room.local" />
+
+        <game :value="after.game" v-if="after" />
+      </v-flex>
 
       <v-flex>
         <game v-for="member in others" :key="member" :value="member.game" />
@@ -83,8 +91,28 @@ export default {
       bag_preview: 5,
     });
 
+    const before = computed(() => {
+      if (props.room.members.length < 3)
+        return;
+
+      let index = props.room.index - 1;
+      if (index == -1) index = props.room.members.length - 1;
+
+      return props.room.members[index];
+    });
+
+    const after = computed(() => {
+      if (props.room.members.length < 2)
+        return;
+
+      let index = props.room.index + 1;
+      if (index == props.room.members.length) index = 0;
+
+      return props.room.members[index];
+    });
+
     const others = computed(() => {
-      return props.room.members.filter((_, i) => i != props.room.index);
+      return props.room.members.filter((m, i) => i != props.room.index && m != before.value && m != after.value);
     });
 
     return {
@@ -93,6 +121,7 @@ export default {
       editing,
       game_rules,
       others,
+      after,before,
 
       start() {
         props.room.start_game(game_rules);

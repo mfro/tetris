@@ -9,7 +9,7 @@ import { GameRules, tetronimos } from '../config';
 import { make_renderer, RenderConfig, Renderer, render_tilesheets, TileStyle } from './basic';
 import { assert } from '@mfro/ts-common/assert';
 
-const padding = new Vec(3, 3);
+const padding = new Vec(1, 3);
 
 const adj8 = [
   new Vec(-1, -1),

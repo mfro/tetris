@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { computed, provide, shallowRef, watch, watchEffect } from 'vue';
+import { computed, provide, shallowRef, watchEffect } from 'vue';
 
 import editConfig from '@/ui/edit-config';
 import { make_renderer } from '@/tetris/render/basic';
@@ -66,7 +66,7 @@ export default {
       user_prefs.value.soft_drop = 10;
 
     if (!Reflect.has(user_prefs.value, 'render'))
-      user_prefs.value.render = { size: 32, smooth: false, style: 'pixel', border: 3, ghost_opacity: 0.4 };
+      user_prefs.value.render = { size: 24, smooth: false, style: 'pixel', border: 3, ghost_opacity: 0.4 };
 
     provide('user_prefs', user_prefs);
 
@@ -74,7 +74,7 @@ export default {
       make_renderer(user_prefs.value.render).catch(e => {
         user_prefs.value = {
           ...user_prefs.value,
-          render: { size: 32, smooth: false, style: 'pixel', border: 3, ghost_opacity: 0.4 },
+          render: { size: 24, smooth: false, style: 'pixel', border: 3, ghost_opacity: 0.4 },
         };
 
         localStorage.setItem('mfro:tetris-user-preferences', JSON.stringify(user_prefs.value));

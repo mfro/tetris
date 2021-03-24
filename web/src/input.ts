@@ -28,14 +28,20 @@ window.addEventListener('keydown', e => {
   holding.add(e.keyCode);
 
   let event = press.get(e.keyCode);
-  if (event) emit(event);
+  if (event) {
+    emit(event);
+    e.preventDefault();
+  }
 });
 
 window.addEventListener('keyup', e => {
   holding.delete(e.keyCode);
 
   let event = release.get(e.keyCode);
-  if (event) emit(event);
+  if (event) {
+    emit(event);
+    e.preventDefault();
+  }
 });
 
 export function isKeyDown(k: number) {

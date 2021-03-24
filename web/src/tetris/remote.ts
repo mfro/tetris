@@ -36,10 +36,8 @@ function observe<Args extends any[], R, O extends { [k in K]: (...args: Args) =>
 }
 
 export function create_room(name: string, user: UserPreferences, code: string | null) {
-  let socket: WebSocket;
-  const base =
-    window.location.host == 'box:8080' || window.location.host == 'localhost:8080'
-      ? 'ws://box:8081/' : 'wss://api.mfro.me/tetris/play';
+  const url = new URL(localStorage.getItem('mfro:tetris-server')
+    ?? 'wss://api.mfro.me/tetris/join');
 
   const state: RemoteState = shallowReactive({
     local: null,
@@ -55,11 +53,12 @@ export function create_room(name: string, user: UserPreferences, code: string | 
     },
   });
 
+  url.searchParams.set('name', name);
   if (state.code) {
-    socket = new WebSocket(`${base}?name=${name}&code=${state.code}`);
-  } else {
-    socket = new WebSocket(`${base}?name=${name}`);
+    url.searchParams.set('code', state.code);
   }
+
+  let socket = new WebSocket(url.toString());
 
   function check_exit() {
     let playing = state.members.filter((m, i) => m.game && !m.game.state.dead);
